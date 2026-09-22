@@ -1,0 +1,17 @@
+[Unit]
+Description=AgriBot Raspberry Pi sensor server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# Pi deployment location for the current project checkout.
+User=rayyanshk
+WorkingDirectory=/home/rayyanshk/Desktop/rc_car/AgriBot-Smart_Farming/pi
+EnvironmentFile=/etc/agribot-sensors.env
+ExecStart=/usr/bin/python3 /home/rayyanshk/Desktop/rc_car/AgriBot-Smart_Farming/pi/sensor_server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

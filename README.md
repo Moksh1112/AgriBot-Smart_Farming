@@ -622,6 +622,141 @@ Do upload:
 
 ## Hardware Handoff
 
+## Raspberry Pi Sensor Server
+
+The Pi implementation is [pi/sensor_server.py](pi/sensor_server.py). It reads
+the connected sensors on demand, exposes a small local HTTP API for manual
+testing, and publishes a complete reading to the existing backend. The app
+receives the published reading through the current Socket.IO flow and shows
+soil moisture, temperature, humidity, rainfall, and the pH placeholder.
+
+### Important electrical rule
+
+Raspberry Pi GPIO is **3.3 V only** and has no analog inputs. Do not connect
+any sensor's analog output (`AO`) directly to a Pi GPIO, and do not power these
+modules from 5 V if their output is wired to the MCP3008. The MCP3008 below is
+powered at 3.3 V, so every analog input must remain between 0 and 3.3 V.
+
+### Wiring (BCM GPIO names and physical Pi header pins)
+
+All ground pins below must share a common ground.
+
+| Device | Module pin | Raspberry Pi / MCP3008 connection |
+| --- | --- | --- |
+| MCP3008 ADC | VDD and VREF | Pi 3V3, physical pin 1 |
+| MCP3008 ADC | AGND and DGND | Pi GND, physical pin 6 |
+| MCP3008 ADC | CLK | Pi GPIO 11 / SCLK, physical pin 23 |
+| MCP3008 ADC | DOUT | Pi GPIO 9 / MISO, physical pin 21 |
+| MCP3008 ADC | DIN | Pi GPIO 10 / MOSI, physical pin 19 |
+| MCP3008 ADC | CS/SHDN | Pi GPIO 8 / CE0, physical pin 24 |
+| Capacitive soil moisture | VCC, GND | Pi 3V3 (pin 1), Pi GND (pin 6) |
+| Capacitive soil moisture | AO | MCP3008 CH0 |
+| DHT22 | VCC, GND | Pi 3V3 (pin 1), Pi GND (pin 6) |
+| DHT22 | DATA | Pi GPIO 24, physical pin 18; add a 4.7–10 kΩ pull-up resistor from DATA to 3V3 if your breakout does not already include one |
+| FC-37 rain module | VCC, GND | Pi 3V3 (pin 1), Pi GND (pin 6) |
+| FC-37 rain module | DO | Pi GPIO 27, physical pin 13 |
+| FC-37 rain module | AO | Leave disconnected; the server uses DO as a Wet/Dry reading |
+| pH sensor (future) | AO | MCP3008 CH2 (reserved in the Pi server; this is not a Pi GPIO pin) |
+
+The FC-37 is a digital Wet/Dry indication, not a calibrated rainfall depth.
+The pH module is reserved for MCP3008 CH2 and will need calibration with buffer
+solutions when it is added. Verify its analog output is no higher than 3.3 V
+before connecting it to the MCP3008.
+
+### Pi setup and manual tests
+
+Enable SPI in `sudo raspi-config` (`Interface Options` → `SPI`), reboot, then
+install the required Pi packages:
+
+```bash
+sudo apt update
+sudo apt install -y python3-gpiozero python3-spidev
+cd AgriBot-Smart_Farming/pi
+python3 -m pip install -r requirements-sensors.txt
+cp sensor.env.example sensor.env
+```
+
+Open `sensor.env` and set `AGRIBOT_BACKEND_URL`, `ROBOT_INGEST_KEY`, and the
+robot's latitude/longitude. Load it and start the service:
+
+```bash
+set -a
+. ./sensor.env
+set +a
+python3 sensor_server.py
+```
+
+From another terminal (replace `PI_IP` with the Pi's LAN address), test each
+sensor without sending data to the app:
+
+```bash
+curl http://PI_IP:8000/health
+curl http://PI_IP:8000/sensors/soil-moisture
+curl http://PI_IP:8000/sensors/dht22
+curl http://PI_IP:8000/sensors/rainfall
+curl http://PI_IP:8000/sensors/ph
+```
+
+Use the raw values reported for soil moisture to set `SOIL_DRY_VALUE` when the
+probe is dry and `SOIL_WET_VALUE` when it is in wet soil. Restart the service
+after editing `sensor.env`. Finally, publish one complete reading to the
+backend and dashboard:
+
+```bash
+curl -X POST http://PI_IP:8000/sensors/publish
+```
+
+`GET /sensors` reads every available hardware sensor but does not publish. The
+publish endpoint deliberately requires every physical sensor to return a valid
+reading, preventing partial or misleading dashboard data.
+
+### Current demo/live sensor mix
+
+The Pi service is configured to publish automatically every 30 seconds. It
+uses simulated values for soil moisture (`48%`) and pH (`6.8`) until their
+analog probes are connected. DHT22 temperature/humidity and FC-37 Wet/Dry are
+always read from the real hardware. Change `FAKE_SOIL_MOISTURE` and `FAKE_PH`
+in `sensor.env` to alter the demo values.
+
+### Start automatically at Pi boot
+
+The provided [pi/agribot-sensors.service](pi/agribot-sensors.service) is a
+systemd service. It is configured for this checkout at
+`/home/rayyanshk/Desktop/rc_car/AgriBot-Smart_Farming`; edit `User`,
+`WorkingDirectory`, and `ExecStart` in that file if your Pi username or clone
+location differs.
+
+On the Pi, install and enable it:
+
+```bash
+cd ~/Desktop/rc_car/AgriBot-Smart_Farming/pi
+sudo install -m 600 sensor.env /etc/agribot-sensors.env
+sudo install -m 644 agribot-sensors.service /etc/systemd/system/agribot-sensors.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now agribot-sensors.service
+sudo systemctl status agribot-sensors.service
+```
+
+To watch sensor and publishing logs:
+
+```bash
+journalctl -u agribot-sensors.service -f
+```
+
+### Change Raspberry Pi Wi-Fi
+
+On current Raspberry Pi OS releases using NetworkManager, run this on the Pi,
+substituting your own network name and password. Do not add real credentials to
+this repository or `sensor.env`.
+
+```bash
+nmcli dev wifi connect "YOUR_WIFI_NAME" password "YOUR_WIFI_PASSWORD"
+```
+
+Confirm the connection with `nmcli device status` or `hostname -I`. If your Pi
+is currently connected remotely over Wi-Fi, this command will briefly disconnect
+that session; use a monitor/keyboard or Ethernet as a recovery path.
+
 The hardware teammate will eventually replace the simulator with firmware that:
 
 1. Reads the soil moisture sensor.
@@ -638,7 +773,9 @@ The hardware request must contain:
   "sensors": {
     "soilMoisture": 88,
     "temperature": 36,
-    "humidity": 45
+    "humidity": 45,
+    "rainfall": 12,
+    "ph": null
   },
   "robot": {
     "status": "online"

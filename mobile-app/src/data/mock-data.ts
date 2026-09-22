@@ -2,6 +2,8 @@ export interface SensorData {
   soilMoisture: number;
   temperature: number;
   humidity: number;
+  rainfall: number;
+  ph: number | null;
 }
 
 export interface RobotData {
@@ -31,6 +33,8 @@ const mockDashboardData: DashboardData = {
     soilMoisture: 48,
     temperature: 29,
     humidity: 64,
+    rainfall: 0,
+    ph: null,
   },
   robot: {
     status: 'online',

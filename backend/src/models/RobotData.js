@@ -15,6 +15,15 @@ const robotDataSchema = new mongoose.Schema(
         type: Number,
         required: true,
       },
+      rainfall: {
+        type: Number,
+        required: true,
+      },
+      // Reserved for the future analog pH probe integration.
+      ph: {
+        type: Number,
+        default: null,
+      },
     },
     robot: {
       status: {

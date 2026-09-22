@@ -13,6 +13,7 @@ let robotState = {
   soilMoisture: 48,
   temperature: 29,
   humidity: 64,
+  rainfall: 0,
   latitude: 19.076,
   longitude: 72.8777,
 };
@@ -34,6 +35,7 @@ function nextRobotState() {
     soilMoisture: vary(robotState.soilMoisture, 1.5, 0, 100),
     temperature: vary(robotState.temperature, 0.3, -40, 60),
     humidity: vary(robotState.humidity, 1.2, 0, 100),
+    rainfall: vary(robotState.rainfall, 3, 0, 100),
     latitude: vary(robotState.latitude, 0.00015, -90, 90),
     longitude: vary(robotState.longitude, 0.00015, -180, 180),
   };
@@ -43,6 +45,8 @@ function nextRobotState() {
       soilMoisture: Number(robotState.soilMoisture.toFixed(1)),
       temperature: Number(robotState.temperature.toFixed(1)),
       humidity: Number(robotState.humidity.toFixed(1)),
+      rainfall: Number(robotState.rainfall.toFixed(1)),
+      ph: null,
     },
     robot: {
       status: 'online',
@@ -59,6 +63,7 @@ function printRobotData(data) {
   console.log('Soil Moisture:', `${data.sensors.soilMoisture}%`);
   console.log('Temperature:', `${data.sensors.temperature}°C`);
   console.log('Humidity:', `${data.sensors.humidity}%`);
+  console.log('Rainfall:', `${data.sensors.rainfall}%`);
   console.log('Location:', `${data.location.latitude}, ${data.location.longitude}`);
 }
 

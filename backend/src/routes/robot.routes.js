@@ -16,6 +16,8 @@ function validateRobotData(body) {
   if (!isNumber(sensors?.soilMoisture)) return 'sensors.soilMoisture must be a number.';
   if (!isNumber(sensors?.temperature)) return 'sensors.temperature must be a number.';
   if (!isNumber(sensors?.humidity)) return 'sensors.humidity must be a number.';
+  if (!isNumber(sensors?.rainfall)) return 'sensors.rainfall must be a number.';
+  if (sensors?.ph !== null && sensors?.ph !== undefined && !isNumber(sensors.ph)) return 'sensors.ph must be a number or null.';
   if (typeof robot?.status !== 'string' || !robot.status.trim()) return 'robot.status is required.';
   if (!isNumber(location?.latitude)) return 'location.latitude must be a number.';
   if (!isNumber(location?.longitude)) return 'location.longitude must be a number.';
@@ -29,6 +31,8 @@ function dashboardData(robotData) {
       soilMoisture: robotData.sensors.soilMoisture,
       temperature: robotData.sensors.temperature,
       humidity: robotData.sensors.humidity,
+      rainfall: robotData.sensors.rainfall,
+      ph: robotData.sensors.ph,
     },
     robot: {
       status: robotData.robot.status,
