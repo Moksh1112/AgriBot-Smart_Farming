@@ -7,7 +7,7 @@ import { RobotLeafletMap } from '@/components/robot-leaflet-map';
 import { ScreenHeader } from '@/components/screen-header';
 import { AgriColors, AgriSpacing } from '@/constants/agri-theme';
 import { useAuth } from '@/context/auth-context';
-import type { DashboardData } from '@/data/mock-data';
+import { getMockDashboardData, type DashboardData } from '@/data/mock-data';
 import { getRobotDashboard, RobotApiError } from '@/services/robot-service';
 import { connectRobotSocket } from '@/services/robot-socket-service';
 
@@ -73,10 +73,16 @@ export default function LocationScreen() {
 
   if (!isAuthenticated) return <Redirect href="/login" />;
   if (isLoading) return <SafeAreaView style={styles.screen}><View style={styles.stateContainer}><ActivityIndicator color={AgriColors.primary} size="large" /><Text style={styles.stateText}>Loading robot location...</Text></View></SafeAreaView>;
-  if (error || !dashboardData) return <SafeAreaView style={styles.screen}><View style={styles.stateContainer}><Text style={styles.stateTitle}>Location unavailable</Text><Text style={styles.stateText}>{error || 'No robot data available.'}</Text></View></SafeAreaView>;
+  if (error || !dashboardData) return <DemoLocation error={error} onBack={() => router.back()} />;
 
   const { location, robot } = dashboardData;
   return <SafeAreaView style={styles.screen}><View style={styles.content}><ScreenHeader eyebrow="Live position" title="Robot location" actionLabel="Back" onAction={() => router.back()} /><RobotLeafletMap latitude={location.latitude} longitude={location.longitude} status={robot.status} /><View style={styles.details}><View><Text style={styles.detailTitle}>AgriBot</Text><Text style={styles.status}>● {robot.status}</Text><Text style={styles.updated}>Updated {robot.lastUpdated}</Text></View><View style={styles.coordinateBlock}><Text style={styles.coordinateLabel}>Latitude</Text><Text style={styles.coordinateValue}>{location.latitude.toFixed(4)}</Text><Text style={styles.coordinateLabel}>Longitude</Text><Text style={styles.coordinateValue}>{location.longitude.toFixed(4)}</Text></View></View></View></SafeAreaView>;
+}
+
+function DemoLocation({ error, onBack }: { error: string; onBack: () => void }) {
+  const { location } = getMockDashboardData();
+
+  return <SafeAreaView style={styles.screen}><View style={styles.content}><ScreenHeader eyebrow="Location preview" title="Robot location" actionLabel="Back" onAction={onBack} /><View style={styles.previewBanner}><Text style={styles.previewEyebrow}>DEMO LOCATION</Text><Text style={styles.previewTitle}>A map for every field mission</Text><Text style={styles.previewText}>This sample position shows where the AgriBot location and status will appear when live tracking is connected.</Text>{error ? <Text style={styles.previewError}>{error}</Text> : null}</View><RobotLeafletMap latitude={location.latitude} longitude={location.longitude} status="demo" /><View style={styles.details}><View><Text style={styles.detailTitle}>AgriBot preview</Text><Text style={styles.status}>● Awaiting live location</Text><Text style={styles.updated}>Sample position</Text></View><View style={styles.coordinateBlock}><Text style={styles.coordinateLabel}>Latitude</Text><Text style={styles.coordinateValue}>{location.latitude.toFixed(4)}</Text><Text style={styles.coordinateLabel}>Longitude</Text><Text style={styles.coordinateValue}>{location.longitude.toFixed(4)}</Text></View></View></View></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
@@ -92,4 +98,9 @@ const styles = StyleSheet.create({
   stateContainer: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: AgriSpacing.xl },
   stateTitle: { color: AgriColors.text, fontSize: 20, fontWeight: '800', marginBottom: AgriSpacing.sm, textAlign: 'center' },
   stateText: { color: AgriColors.textMuted, fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  previewBanner: { backgroundColor: AgriColors.primarySoft, borderColor: AgriColors.border, borderRadius: 18, borderWidth: 1, marginBottom: AgriSpacing.sm, padding: AgriSpacing.md },
+  previewEyebrow: { color: AgriColors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.3, marginBottom: 5 },
+  previewTitle: { color: AgriColors.text, fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  previewText: { color: AgriColors.textMuted, fontSize: 13, lineHeight: 19 },
+  previewError: { color: AgriColors.warning, fontSize: 11, lineHeight: 17, marginTop: 5 },
 });

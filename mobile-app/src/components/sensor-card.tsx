@@ -17,8 +17,8 @@ export function SensorCard({ label, value, detail, accentColor, featured = false
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: AgriColors.surface, borderColor: AgriColors.border, borderRadius: AgriRadius.lg, borderWidth: 1, flex: 1, minHeight: 138, overflow: 'hidden', padding: AgriSpacing.md },
-  featuredCard: { flexBasis: '100%', flexGrow: 0, minHeight: 174, padding: AgriSpacing.lg },
+  card: { backgroundColor: AgriColors.surface, borderColor: AgriColors.border, borderRadius: AgriRadius.lg, borderWidth: 1, flexBasis: '48%', flexGrow: 0, minHeight: 138, overflow: 'hidden', padding: AgriSpacing.md },
+  featuredCard: { flexBasis: '100%', minHeight: 174, padding: AgriSpacing.lg },
   accent: { backgroundColor: AgriColors.primary, height: 4, left: 0, position: 'absolute', right: 0, top: 0 },
   label: { color: AgriColors.textMuted, fontSize: 11, fontWeight: '900', letterSpacing: 1.1, marginBottom: 16, textTransform: 'uppercase' },
   value: { color: AgriColors.text, fontSize: 26, fontWeight: '800', marginBottom: AgriSpacing.xs },

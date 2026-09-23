@@ -1,7 +1,7 @@
 // DEVELOPMENT/TEST ONLY: simulates one AgriBot for local pipeline testing.
 require('dotenv').config();
 
-const ROBOT_DATA_URL = 'http://192.168.0.103:5000/api/robot/data';
+const ROBOT_DATA_URL = 'http://10.160.56.165:5001/api/robot/data';
 const DEFAULT_INTERVAL_MS = 5000;
 
 const configuredInterval = Number.parseInt(process.env.ROBOT_SIM_INTERVAL_MS, 10);
