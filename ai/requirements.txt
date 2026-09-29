@@ -1,0 +1,30 @@
+# AgriBot AI — Python dependencies
+# Works on Windows (development) and Raspberry Pi (deployment).
+#
+# Setup (Windows):
+#   python -m venv venv
+#   .\venv\Scripts\Activate.ps1
+#   pip install -r requirements.txt
+#
+# Setup (Raspberry Pi):
+#   python3 -m venv venv
+#   source venv/bin/activate
+#   pip install -r requirements.txt
+
+# Core inference engine — includes YOLO v5-v12 and the 'ultralytics' CLI
+ultralytics>=8.3.0
+
+# Computer vision utilities
+opencv-python>=4.9.0
+
+# Numerical computing (ultralytics installs this, pinned for clarity)
+numpy>=1.24.0
+
+# Image handling
+Pillow>=10.0.0
+
+# Environment variable loading
+python-dotenv>=1.0.0
+
+# Local testing UI
+gradio>=4.0.0
