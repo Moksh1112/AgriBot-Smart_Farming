@@ -10,7 +10,7 @@ REPO_DIR="$(dirname "$PI_DIR")"
 echo "==> Installing system packages"
 apt-get update
 apt-get install -y python3-venv python3-numpy python3-opencv python3-gpiozero python3-spidev \
-  python3-picamera2 python3-dbus python3-gi bluez network-manager
+  python3-picamera2 python3-dbus python3-gi python3-lgpio bluez network-manager
 
 echo "==> Linking checkout to /opt/agribot"
 mkdir -p /opt/agribot /var/lib/agribot
@@ -30,6 +30,9 @@ if [[ ! -f /etc/agribot.env ]]; then
 fi
 # The checkout's relative MODEL_PATH resolves from /opt/agribot/pi.
 sed -i 's#^MODEL_PATH=\.\./ai/#MODEL_PATH=/opt/agribot/ai/#' /etc/agribot.env
+if grep -q '^ROBOT_INGEST_KEY=replace-with' /etc/agribot.env; then
+  echo "!! Set ROBOT_INGEST_KEY in /etc/agribot.env (sudo nano /etc/agribot.env), then: sudo systemctl restart agribot"
+fi
 
 if [[ ! -f "$REPO_DIR/ai/models/weights/best.onnx" ]]; then
   echo "!! Model missing: copy best.onnx to $REPO_DIR/ai/models/weights/ (vision stays disabled until then)"

@@ -3,7 +3,7 @@
 /// The farmer can also change the server address on the login screen.
 const String kDefaultApiUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://Rayyans-MacBook-Air.local:5001',
+  defaultValue: 'https://agribot-egl8.onrender.com',
 );
 
 /// Bluetooth GATT UUIDs; must match pi/agribot/ble.py.

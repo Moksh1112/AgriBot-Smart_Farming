@@ -8,6 +8,8 @@ This repository contains these parts:
 - `flutter_app`: the farmer app for iOS and Android, written in Flutter. It shows live field data, a field map, crop-disease scans, and Bluetooth Wi-Fi sharing with the robot. See [flutter_app/README.md](flutter_app/README.md).
 - `pi`: one lightweight Python service for the Raspberry Pi. It reads the sensors, runs the tomato-leaf disease model on the camera, takes commands from the app, and accepts Wi-Fi details from the phone over Bluetooth.
 - `ai`: training-side tools for the YOLO26s tomato-leaf disease model and its ONNX export.
+- `website`: the product landing page in Next.js + three.js, with a scroll-driven 3D rover story, an app screenshot carousel and the APK download. See [website/README.md](website/README.md).
+- `docs`: Raspberry Pi pin mapping and wiring diagram.
 
 The physical robot is not required for development. The development simulator sends the same ingestion request that an ESP32 or Raspberry Pi will eventually send.
 
@@ -652,6 +654,10 @@ journalctl -u agribot -f
 ```
 
 `ROBOT_INGEST_KEY` is the only value that must be set by hand. `AGRIBOT_BACKEND_URL` can be left as a placeholder, because the app sends its server address when it shares a network.
+
+The service reads `/etc/agribot.env` itself and takes every value literally, so a robot key containing characters like `$ # & !` works as-is. Quotes are optional.
+
+A server address shared from the app over Bluetooth is saved in `/var/lib/agribot/state.json`, and it takes priority over `AGRIBOT_BACKEND_URL`. To go back to the env file value, run `sudo rm /var/lib/agribot/state.json && sudo systemctl restart agribot`.
 
 Set `BLE_PAIRING_PIN` in `/etc/agribot.env` so that strangers nearby cannot change the robot's Wi-Fi. The app then asks for that PIN.
 

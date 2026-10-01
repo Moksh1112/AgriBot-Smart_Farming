@@ -29,16 +29,30 @@ def _path(name, default):
     return path if path.is_absolute() else (PI_ROOT / path).resolve()
 
 
+def _unquote(value):
+    """Strip one pair of matching quotes; everything else is kept literally."""
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
 def load_env_file(path):
-    """Minimal KEY=VALUE loader so the service also runs without systemd."""
+    """Read KEY=VALUE lines literally (no $ expansion or escapes), so secrets
+    may contain any characters. Real environment variables take precedence."""
     if not path.exists():
-        return
+        return False
     for line in path.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+        os.environ.setdefault(key.strip(), _unquote(value.strip()))
+    return True
+
+
+def env_file_candidates():
+    explicit = os.getenv("AGRIBOT_ENV_FILE")
+    return [Path(explicit)] if explicit else [Path("/etc/agribot.env"), PI_ROOT / "agribot.env"]
 
 
 @dataclass(frozen=True)
@@ -84,7 +98,10 @@ class Config:
 
 
 def load_config():
-    load_env_file(PI_ROOT / "agribot.env")
+    for candidate in env_file_candidates():
+        if load_env_file(candidate):
+            print(f"[config] Loaded {candidate}")
+            break
     return Config(
         host=_env("AGRIBOT_HOST", "0.0.0.0"),
         port=_int("AGRIBOT_PORT", 8000),

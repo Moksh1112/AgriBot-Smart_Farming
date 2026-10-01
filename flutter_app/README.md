@@ -31,7 +31,7 @@ flutter run --release -d <device>             # what you install for real use
 flutter run --dart-define=API_URL=http://192.168.1.20:5001
 ```
 
-The default server is `http://Rayyans-MacBook-Air.local:5001`, the laptop's Bonjour name. You can change it on the login screen with **Server: …**. The new address is saved on the phone, so changing networks does not need a rebuild.
+The default server is the hosted backend, `https://agribot-egl8.onrender.com`. You can change it on the login screen with **Server: …**. The new address is saved on the phone, so changing networks does not need a rebuild.
 
 ## Layout
 

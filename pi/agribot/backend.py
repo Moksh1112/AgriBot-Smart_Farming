@@ -4,6 +4,8 @@ import json
 import urllib.error
 import urllib.request
 
+USER_AGENT = "AgriBot-Pi/2.0 (+https://github.com/Moksh1112/AgriBot-Smart_Farming)"
+
 
 class BackendError(RuntimeError):
     pass
@@ -27,7 +29,7 @@ class BackendClient:
             f"{base}{path}",
             data=body,
             method=method,
-            headers={"Content-Type": "application/json", "x-robot-key": self._key},
+            headers={"Content-Type": "application/json", "x-robot-key": self._key, "User-Agent": USER_AGENT},
         )
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:

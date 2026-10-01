@@ -26,3 +26,23 @@ services:
         value: 30d
       - key: CORS_ORIGINS
         value: "*"
+
+  # Landing page (Next.js static export). Add website/public/downloads/agribot.apk to enable the download button.
+  - type: web
+    name: agribot-site
+    runtime: static
+    rootDir: website
+    buildCommand: npm ci && npm run build
+    staticPublishPath: out
+    envVars:
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://agribot-site.onrender.com
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=3600
+      - path: /downloads/*
+        name: Content-Type
+        value: application/vnd.android.package-archive

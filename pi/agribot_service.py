@@ -96,7 +96,7 @@ class AgriBot:
             "robot": {"status": "online"},
             "location": {"latitude": self.cfg.latitude, "longitude": self.cfg.longitude},
         }
-        self.backend.request("POST", "/api/robot/data", payload)
+        self.backend.request("POST", "/api/robot/data", payload, timeout=30)
         return reading
 
     def scan(self, image=None, source="camera", publish=True):
@@ -117,7 +117,7 @@ class AgriBot:
         self.latest_scan, self.latest_jpeg = result, jpeg
         print(f"[vision] {result['summary']['label']} ({len(detections)} detections, {elapsed} ms)")
         if publish and self.backend.configured:
-            self.backend.request("POST", "/api/robot/detections", {**result, "image": jpeg_data_uri(jpeg)}, timeout=20)
+            self.backend.request("POST", "/api/robot/detections", {**result, "image": jpeg_data_uri(jpeg)}, timeout=60)
         return result
 
     def run_command(self, command):
@@ -154,7 +154,7 @@ class AgriBot:
         while not self.stop.is_set():
             if self.backend.configured:
                 try:
-                    response = self.backend.request("POST", "/api/robot/heartbeat", self.status(), timeout=5)
+                    response = self.backend.request("POST", "/api/robot/heartbeat", self.status(), timeout=15)
                     if not self.backend_ok_at:
                         print(f"[service] Connected to backend {self.backend_url()}")
                     self.backend_ok_at, self.backend_error = time.time(), None

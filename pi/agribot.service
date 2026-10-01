@@ -8,7 +8,8 @@ Type=simple
 # Root is needed to change Wi-Fi with nmcli and to register the BLE service.
 User=root
 WorkingDirectory=/opt/agribot/pi
-EnvironmentFile=/etc/agribot.env
+# The service reads this file itself, literally, so secrets may contain $ # & etc.
+Environment=AGRIBOT_ENV_FILE=/etc/agribot.env
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/agribot/venv/bin/python /opt/agribot/pi/agribot_service.py
 Restart=always
