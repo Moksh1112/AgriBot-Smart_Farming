@@ -5,8 +5,7 @@ AgriBot is an IoT-based smart farming prototype. A robot collects soil and envir
 This repository contains these parts:
 
 - `backend`: Node.js, Express, MongoDB/Mongoose, JWT authentication, and Socket.IO.
-- `flutter_app`: **the current farmer app**, written in Flutter, with the same screens and features as below. See [flutter_app/README.md](flutter_app/README.md).
-- `mobile-app`: the earlier React Native (Expo) version of the app, kept for reference. It uses React Native with Expo Router, SecureStore authentication, Socket.IO updates, a Leaflet field map, crop-disease scans, and Bluetooth Wi-Fi sharing.
+- `flutter_app`: the farmer app for iOS and Android, written in Flutter. It shows live field data, a field map, crop-disease scans, and Bluetooth Wi-Fi sharing with the robot. See [flutter_app/README.md](flutter_app/README.md).
 - `pi`: one lightweight Python service for the Raspberry Pi. It reads the sensors, runs the tomato-leaf disease model on the camera, takes commands from the app, and accepts Wi-Fi details from the phone over Bluetooth.
 - `ai`: training-side tools for the YOLO26s tomato-leaf disease model and its ONNX export.
 
@@ -41,7 +40,7 @@ MongoDB Community Server
         |
         | Socket.IO: robot:data
         v
-React Native Farmer App
+Flutter Farmer App
         |
         | GET /api/robot/dashboard + farmer JWT
         v
@@ -57,7 +56,7 @@ Mobile app
     v
 Express + bcryptjs + JWT
     |
-    | JWT stored in SecureStore
+    | JWT stored in the iOS Keychain / Android Keystore
     v
 Protected dashboard and Socket.IO connections
 ```
@@ -78,34 +77,27 @@ Versions below are taken from the current `package.json` files. Node.js itself i
 - socket.io `^4.8.3`: Authenticated real-time server connections and `robot:data` events.
 - nodemon `^3.1.14`: Restarts the backend during development.
 
-### Mobile app
+### Farmer app (Flutter)
 
-- Expo `~57.0.24`: React Native development platform and Expo Go workflow.
-- React Native `0.86.3`: Mobile UI framework.
-- Expo Router `~57.0.22`: File-based navigation under `src/app`.
-- `expo-secure-store` `~57.0.4`: Securely stores the farmer JWT on the device.
-- `socket.io-client` `^4.8.3`: Receives live robot updates.
-- `react-native-webview` `13.16.1`: Hosts the Leaflet map HTML document.
-- `react-native-ble-manager` `^12.5.3`: Bluetooth LE connection to the Pi for Wi-Fi sharing (development build only).
-- `@expo/vector-icons` `^15.0.2`: Ionicons used across the redesigned UI.
-- `react-native-maps` `1.27.2`: Still installed, but not used by the active Robot Location screen. The active map is Leaflet inside WebView.
-- `react-native-safe-area-context` `~5.7.0`: Safe-area layout support.
-- TypeScript `~6.0.3`: Type checking and typed mobile source.
+- Flutter 3.47+ and Dart 3.13+.
+- `provider`: app state.
+- `http` and `socket_io_client`: REST and live Socket.IO updates.
+- `flutter_secure_storage`: stores the farmer JWT in the Keychain or Keystore.
+- `flutter_map` and `latlong2`: native OpenStreetMap field map.
+- `flutter_reactive_ble`: Bluetooth LE to the Pi. It is BSD-licensed and free for commercial use.
+- `permission_handler`: Android "Nearby devices" permission.
 
-## Prerequisites on Windows
+## Prerequisites
 
 Install the following before cloning or running the project:
 
-1. Git for Windows.
-2. Node.js LTS and npm.
-3. Visual Studio Code.
-4. MongoDB Community Server.
-5. MongoDB Compass.
-6. Expo Go on an Android phone.
+1. Git.
+2. Node.js LTS (20 or newer) and npm, for the backend.
+3. Flutter SDK, for the app. On a Mac add Xcode for iPhone builds, and Android Studio for Android builds.
+4. A MongoDB database: MongoDB Atlas, or MongoDB Community Server locally.
+5. Visual Studio Code, recommended.
 
-A global Expo CLI installation is not required. The project uses `npx expo` from the local Expo dependency.
-
-Do not commit `node_modules`. Do not commit `.env` files. Both project areas already ignore these kinds of local files; see [backend/.gitignore](backend/.gitignore) and [mobile-app/.gitignore](mobile-app/.gitignore).
+Do not commit `node_modules`, Flutter `build/` output, or `.env` files. The `.gitignore` files already exclude them.
 
 ## Clone the Repository
 
@@ -116,48 +108,27 @@ git clone <YOUR-GITHUB-REPOSITORY-URL>
 cd AgriBot
 ```
 
-The two project directories are independent npm projects:
+The project folders are independent:
 
 ```text
 AgriBot/
-├── backend/
-└── mobile-app/
+├── backend/       Node.js API (npm)
+├── flutter_app/   Farmer app (Flutter)
+├── pi/            Raspberry Pi service (Python)
+├── ai/            Model training and export tools
+└── docs/          Wiring and pin mapping
 ```
 
-Use `cd backend` for server commands and `cd mobile-app` for Expo commands.
-
-## Flutter App (current)
+## Farmer App Installation
 
 ```bash
 cd flutter_app
 flutter pub get
-flutter run --release -d <your-phone>
+flutter run -d <your-phone>               # debug, with hot reload
+flutter run --release -d <your-phone>     # install for everyday use
 ```
 
-On the login screen, tap **Server: …** to set the backend address, for example `http://192.168.1.20:5001`. The phone saves it. Bluetooth works in every build, so no special development build is needed.
-
-## Mobile Installation (Expo version)
-
-From the repository root:
-
-```powershell
-cd mobile-app
-npm install
-npx expo start
-```
-
-Expo Go is the Android application that loads the Expo project during development. Scan the QR code from the Expo terminal or browser dashboard.
-
-Expo Go runs every screen except Bluetooth, because Expo Go has no Bluetooth module. The Robot tab says so instead of crashing. To use **Find AgriBot** and **Share network**, install a development build once with a phone connected over USB:
-
-```powershell
-cd mobile-app
-npx expo run:android
-```
-
-You can also build it in the cloud with `npx eas build --profile development --platform android`. After that, `npx expo start` loads your code into the development build the same way it did into Expo Go.
-
-The Android phone and laptop normally need to be connected to the same Wi-Fi network. The phone must be able to reach the laptop's local IP address.
+Bluetooth works in every build, so no special build is needed. On iPhone, allow **Local Network** and **Bluetooth** when iOS asks.
 
 ## Backend Installation
 
@@ -222,31 +193,22 @@ ROBOT_SIM_INTERVAL_MS=5000
 
 The backend reads these values with `process.env`. The simulator uses `ROBOT_INGEST_KEY` and `ROBOT_SIM_INTERVAL_MS`.
 
-## Mobile Backend URL
+## App Server Address
 
-The mobile base URL is centralized in [mobile-app/src/constants/api.ts](mobile-app/src/constants/api.ts). It reads `EXPO_PUBLIC_API_URL` first and falls back to the default written in that file, so you can switch laptops without editing code:
+On the login screen, tap **Server: …** to choose the backend. Use **Test** to check it, then **Save**. The address is stored on the phone, so changing networks never needs a rebuild.
 
-```powershell
-$env:EXPO_PUBLIC_API_URL="http://YOUR-IP:5000"; npx expo start
+- **Laptop on the same Wi-Fi**: `http://<laptop-name>.local:5000` or `http://<laptop-IPv4>:5000`. On Windows, find the IPv4 address with `ipconfig`. On a Mac, use `ipconfig getifaddr en0`.
+- **Hosted backend**: `https://<your-service>.onrender.com`. See [Hosting the Backend](#hosting-the-backend).
+
+Never use `localhost` from a phone, because there it means the phone itself.
+
+To bake a different default into a build, pass it at build time:
+
+```bash
+flutter run --release --dart-define=API_URL=http://192.168.1.20:5000
 ```
 
-When the app shares a network with the Pi over Bluetooth, it also sends this address, so the Pi publishes to the same server the app uses.
-
-Before using a different laptop, find its local IPv4 address:
-
-```powershell
-ipconfig
-```
-
-Then set the value to:
-
-```text
-http://YOUR-IP:5000
-```
-
-Do not use `localhost` when Expo Go is running on a physical phone. On the phone, `localhost` means the phone itself, not the development laptop.
-
-The robot simulator has its request URL as a source constant in [backend/src/tools/robot-simulator.js](backend/src/tools/robot-simulator.js). If the backend laptop address changes, update that development-only constant before running the simulator. The simulator still reads the robot key from the backend environment and never prints it.
+When the app shares a network with the Pi over Bluetooth, it also sends this server address. The Pi then publishes to the same server the app uses.
 
 ## Running the Project
 
@@ -265,14 +227,14 @@ Expected responsibilities:
 - Start Express and Socket.IO on port `5000`.
 - Serve authentication and robot routes.
 
-### Terminal 2: mobile app
+### Terminal 2: farmer app
 
-```powershell
-cd AgriBot\mobile-app
-npx expo start
+```bash
+cd flutter_app
+flutter run -d <your-phone>
 ```
 
-Then open Expo Go on Android, scan the QR code, and log in with a farmer account. Keep the backend terminal running while using real authentication, dashboard, location, and live robot data.
+Log in with a farmer account. Keep the backend running while you use the app.
 
 ## Authentication API
 
@@ -301,7 +263,7 @@ Request body:
 }
 ```
 
-The backend verifies the bcrypt hash and returns a JWT plus safe user information. The mobile app stores only the JWT in Expo SecureStore under its internal authentication key.
+The backend verifies the bcrypt hash and returns a JWT plus safe user information. The app stores only the JWT, in the iOS Keychain or Android Keystore.
 
 ### `GET /api/auth/me`
 
@@ -417,9 +379,9 @@ MongoDB save
         ↓
 Socket.IO emits robot:data
         ↓
-Mobile Dashboard / Location listener
+Flutter app Field / Map / Leaf scan screens
         ↓
-React Native state updates immediately
+Flutter app state updates immediately
 ```
 
 REST provides the initial/latest state when a screen opens. Socket.IO delivers later changes without a manual refresh. The mobile app authenticates its Socket.IO connection with the farmer JWT. The robot ingestion key is not sent to the mobile app.
@@ -446,54 +408,26 @@ It:
 - Stops cleanly with Ctrl+C.
 - Never prints the robot key, JWT, password, MongoDB URI, or other secrets.
 
-The simulator currently targets the backend URL stored in its development-only source constant. A developer using a different laptop IP must update that constant before running the simulator.
+The simulator targets `http://127.0.0.1:$PORT` by default. To send to another server, set `ROBOT_SIM_URL`, for example `ROBOT_SIM_URL=https://<your-service>.onrender.com npm run simulate`.
 
-## Leaflet Map
+## Field Map
 
-The active Robot Location map uses this architecture:
-
-```text
-React Native
-      ↓
-React Native WebView
-      ↓
-Leaflet 1.9.4
-      ↓
-OpenStreetMap tiles
-```
-
-`react-native-maps` remains installed in the mobile package but is not the active map implementation. It is not used because the earlier Android Expo Go native map rendering was unreliable.
-
-Leaflet runs in a self-contained HTML document inside WebView. OpenStreetMap supplies the visible map tiles. The map includes visible OpenStreetMap attribution, and the phone needs internet access to load Leaflet resources and tiles.
-
-The React Native Location screen owns the authenticated location state. It sends only latitude, longitude, and robot status to the WebView. JWTs, robot keys, MongoDB credentials, and other secrets never enter the map document.
-
-The map component keeps the WebView alive and updates the existing marker through messaging when coordinates change.
+The app draws the map natively with `flutter_map` and OpenStreetMap tiles. The tiles are tinted mint to match the design, with a dashed field boundary and the robot marker. There is no WebView. The phone needs internet access to load tiles, and the map shows the required OpenStreetMap attribution. Only latitude, longitude and online state reach the map widget.
 
 ## First-Run Testing Checklist
 
-- [ ] Git is installed.
-- [ ] Node.js LTS is installed.
-- [ ] MongoDB Community Server is installed.
-- [ ] MongoDB Compass is installed.
-- [ ] MongoDB server is running.
-- [ ] Repository is cloned.
-- [ ] `npm install` completed in `mobile-app`.
+- [ ] Node.js LTS and the Flutter SDK are installed.
+- [ ] A MongoDB database is available (Atlas or local).
 - [ ] `npm install` completed in `backend`.
 - [ ] `backend/.env` was created from `.env.example`.
-- [ ] Mobile `API_BASE_URL` points to the laptop IPv4 address.
-- [ ] Backend starts with `npm run dev`.
-- [ ] `GET /api/health` responds successfully.
-- [ ] Mobile app starts in Expo Go.
-- [ ] Signup works.
-- [ ] Login works.
-- [ ] JWT-protected requests work.
-- [ ] Dashboard loads.
-- [ ] Soil moisture, temperature, and humidity appear.
-- [ ] Robot location appears.
-- [ ] Socket.IO live updates work without refreshing.
-- [ ] Robot simulator sends accepted data.
-- [ ] Leaflet tiles and marker work.
+- [ ] Backend starts with `npm run dev`, and `GET /api/health` reports `"database":"connected"`.
+- [ ] `flutter pub get` completed in `flutter_app`.
+- [ ] The app is installed on a phone and the login screen's **Server** points at the backend.
+- [ ] Signup and login work.
+- [ ] The Field screen shows soil moisture, temperature, humidity, pH and rain.
+- [ ] Live updates arrive without refreshing (run `npm run simulate`).
+- [ ] The full map shows tiles and the robot marker.
+- [ ] With the Pi running, the Robot tab shows **Online**, and **Scan leaves now** returns a scan.
 
 A simple local health check from PowerShell is:
 
@@ -504,6 +438,8 @@ Invoke-RestMethod http://127.0.0.1:5000/api/health
 ## Troubleshooting
 
 ### Port 5000 already in use
+
+On macOS, the AirPlay Receiver already listens on port 5000. Set `PORT=5001` in `backend/.env` and use `:5001` in the app's server address.
 
 Find the process using the port:
 
@@ -525,8 +461,9 @@ mongodb://127.0.0.1:27017/agribot
 
 - Confirm the backend is running on port `5000`.
 - Confirm the phone and laptop use the same Wi-Fi network.
-- Confirm `mobile-app/src/constants/api.ts` uses the laptop's current IPv4 address, not `localhost`.
-- Check Windows Firewall rules if the phone cannot reach the laptop.
+- On the login screen, tap **Server: …** and use **Test**. The address must be the laptop's current name or IP, not `localhost`.
+- On iPhone, check *Settings > AgriBot > Local Network* is on.
+- Check Windows Firewall or macOS firewall rules if the phone cannot reach the laptop.
 
 ### Wrong laptop IP
 
@@ -536,7 +473,7 @@ Run:
 ipconfig
 ```
 
-Use the active adapter's IPv4 address and update the mobile API constant. Restart Expo after changing it if the bundle does not refresh.
+Use the active adapter's IPv4 address in the app's **Server** setting. A `.local` name, such as `http://My-Laptop.local:5000`, survives IP changes.
 
 ### Phone and laptop are not on the same network
 
@@ -564,23 +501,21 @@ The simulator or hardware must send the `x-robot-key` header. The value must mat
 
 - Confirm the backend is running and reachable from the phone.
 - Confirm the farmer is logged in and has a valid JWT.
-- Confirm the mobile API URL uses the laptop IPv4 address.
-- Confirm the backend and mobile Socket.IO major versions remain compatible.
+- Confirm the app's **Server** setting points at the same backend.
+- The backend uses Socket.IO 4 and the app uses `socket_io_client` 3.x, which are compatible.
 - The dashboard should retain the last REST data if Socket.IO temporarily disconnects.
 
 ### Map tiles are not loading
 
 - Confirm the phone has internet access.
-- Confirm Leaflet and OpenStreetMap requests are not blocked.
-- Confirm the WebView is visible and the Location screen received backend data.
+- Confirm OpenStreetMap tile requests are not blocked by the network.
 - OpenStreetMap tiles require visible attribution and are not an offline tile service.
 
-### Expo Go cannot connect
+### Flutter build problems
 
-- Confirm Expo is running with `npx expo start` from `mobile-app`.
-- Keep the phone and laptop on the same Wi-Fi network.
-- Try restarting Expo if the QR session is stale.
-- Do not install a global Expo CLI for this project.
+- Run `flutter doctor` and fix anything it reports.
+- iPhone: open `flutter_app/ios/Runner.xcworkspace` once in Xcode and pick your signing team.
+- Android: Bluetooth needs Android 6 (SDK 23) or newer.
 
 ### `npm install` problems
 
@@ -591,34 +526,20 @@ The simulator or hardware must send the `x-robot-key` header. The value must mat
 
 ## File and Folder Overview
 
-### Mobile app
+### Farmer app
 
 ```text
-mobile-app/src/
-├── app/
-│   ├── _layout.tsx          Root stack with AuthProvider and RobotProvider.
-│   ├── index.tsx            Authenticated/unauthenticated entry redirect.
-│   ├── login.tsx, signup.tsx  Hatched dark hero with a white form sheet.
-│   ├── location.tsx         Full-screen field map with zoom and recenter buttons.
-│   └── (tabs)/
-│       ├── _layout.tsx      Auth guard and the floating dark tab bar.
-│       ├── dashboard.tsx    Field: map hero, Overview/Analysis/Trends tabs, metric chips, crop card, charts.
-│       ├── scan.tsx         Leaf scan: latest annotated photo, Scan now, detections, care advice, history.
-│       └── robot.tsx        Robot status, Bluetooth connect, Share network, actions, account.
-├── components/              Map, floating tab bar, metric chips, charts, Share network sheet, buttons.
-├── constants/
-│   ├── api.ts               Backend URL (EXPO_PUBLIC_API_URL override).
-│   ├── ble.ts               Bluetooth UUIDs shared with pi/agribot/ble.py.
-│   └── agri-theme.ts        Forest/mint palette, radii, shadows.
-├── context/
-│   ├── auth-context.tsx     JWT SecureStore lifecycle and the signed-in user.
-│   └── robot-context.tsx    One REST load and one Socket.IO connection shared by every screen; commands.
-├── data/
-│   ├── crop-advice.ts       Disease descriptions, treatments and field insight rules.
-│   └── mock-data.ts         Dashboard types and sample values shown before the first reading.
-├── hooks/                   Bluetooth provisioning flow, history loading, robot online state.
-├── services/                REST, Socket.IO and Bluetooth clients.
-└── types/robot.ts           Shared API types.
+flutter_app/lib/
+├── main.dart                 Providers and the sign-in gate.
+├── core/                     Config (default server, Bluetooth UUIDs), theme, formatting, crop advice.
+├── models/robot.dart         API models.
+├── services/api_client.dart  JSON client for the backend.
+├── state/
+│   ├── auth_controller.dart  Login, signup, token storage, server address.
+│   ├── robot_controller.dart One REST load and one Socket.IO connection; scan/refresh commands.
+│   └── ble_controller.dart   Find the Pi, connect, read Wi-Fi status, share a network.
+├── widgets/                  Hatch texture, cards, chips, pill tabs, charts, field map.
+└── screens/                  Login/signup, home shell, Field, Leaf scan, Robot, Share network, full map.
 ```
 
 ### Backend
@@ -627,14 +548,16 @@ mobile-app/src/
 backend/src/
 ├── server.js                         Express + HTTP server + Socket.IO setup.
 ├── config/
-│   └── db.js                         Mongoose connection using MONGODB_URI.
+│   ├── db.js                         Mongoose connection using MONGODB_URI (+ DNS fallback).
+│   └── env.js                        Startup checks for required settings.
 ├── models/
 │   ├── User.js                       Farmer account schema.
 │   ├── RobotData.js                  Sensor/status/GPS schema with timestamps.
 │   └── Detection.js                  Crop-disease scan results and annotated image.
 ├── middleware/
 │   ├── auth.middleware.js            Farmer JWT HTTP protection.
-│   ├── robot-auth.middleware.js      x-robot-key ingestion protection.
+│   ├── robot-auth.middleware.js      x-robot-key ingestion protection (constant-time).
+│   ├── rate-limit.middleware.js      Login/signup attempt limiting.
 │   └── socket-auth.middleware.js     Farmer JWT Socket.IO handshake protection.
 ├── routes/
 │   ├── test.routes.js                GET /api/health.
@@ -656,15 +579,15 @@ Never commit or share:
 - `ROBOT_INGEST_KEY`
 - Passwords
 - JWT tokens
-- SecureStore contents
+- Keychain or Keystore contents
 
-The backend ignore file covers `.env` and `node_modules`. The mobile ignore file covers `node_modules`, `.env*.local`, Expo output, Metro output, generated native folders, logs, and TypeScript build information. The mobile ignore file also ignores common signing files; the backend ignore file is intentionally smaller.
+The ignore files cover `.env` files, `node_modules`, Flutter `build/` and `.dart_tool/`, model weights, and Python caches.
 
 Do not upload:
 
 - `node_modules`
 - `.env`
-- Expo build artifacts
+- Flutter build output
 - Temporary files
 - Logs
 - Personal machine configuration
@@ -834,17 +757,14 @@ docker run -p 5000:5000 --env-file .env -e NODE_ENV=production agribot-backend
 
 ## Clean Repository Rules
 
-Keep machine-specific and sensitive files local. Do not commit `node_modules`, `.env`, Expo build artifacts, temporary files, logs, or personal configuration. Keep source code, lockfiles, package manifests, this README, and placeholder environment templates under version control.
+Keep machine-specific and sensitive files local. Do not commit `node_modules`, `.env`, Flutter build output, temporary files, logs, or personal configuration. Keep source code, lockfiles, package manifests, this README, and placeholder environment templates under version control.
 
 ## NEW DEVELOPER QUICK START
 
-1. Install Git, Node.js LTS, VS Code, MongoDB Community Server, MongoDB Compass, and Expo Go.
-2. Clone the repository and run `cd AgriBot`.
-3. Run `cd mobile-app; npm install`.
-4. Run `cd ..\backend; npm install`.
-5. Copy `backend/.env.example` to `backend/.env` and fill private values locally.
-6. Set `mobile-app/src/constants/api.ts` to the laptop's IPv4 address and port `5000`.
-7. Start MongoDB Community Server.
-8. In `backend`, run `npm run dev`.
-9. In `mobile-app`, run `npx expo start`.
-10. Open Expo Go, scan the QR code, and log in.
+1. Install Git, Node.js LTS, the Flutter SDK, and VS Code. Use MongoDB Atlas or a local MongoDB.
+2. Clone the repository and `cd` into it.
+3. Run `cd backend && npm install`, then copy `.env.example` to `.env` and fill in private values.
+4. Run `npm run dev` and open `http://localhost:5000/api/health`.
+5. Run `cd ../flutter_app && flutter pub get && flutter run -d <your-phone>`.
+6. On the login screen, set **Server** to your laptop's address, then sign up.
+7. Optional: `npm run simulate` in `backend` to see live data without the robot.
