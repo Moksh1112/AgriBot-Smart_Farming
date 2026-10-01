@@ -26,6 +26,8 @@ class SensorHub:
         self.error = None
         self._dht = self._soil_adc = self._rain = None
         self._walk = {"soil": config.fake_soil, "temp": 27.0, "hum": 62.0}
+        self._last_dht = None
+        self._dht_warned = False
 
         if not self.simulated:
             try:
@@ -73,11 +75,19 @@ class SensorHub:
         last_error = None
         for _ in range(3):  # DHT22 reads fail occasionally; retry a few times.
             try:
-                return {"temperatureC": round(float(self._dht.temperature), 1), "humidity": round(float(self._dht.humidity), 1), "source": "hardware"}
-            except (RuntimeError, TypeError) as error:
+                reading = {"temperatureC": round(float(self._dht.temperature), 1), "humidity": round(float(self._dht.humidity), 1), "source": "hardware"}
+                self._last_dht = reading
+                return reading
+            except Exception as error:  # RuntimeError, TypeError, or lgpio "GPIO busy" on the Pi 5
                 last_error = error
                 time.sleep(2)
-        raise RuntimeError(f"DHT22 did not return a reading: {last_error}")
+        # Never block the other sensors: reuse the last good reading, else a marked placeholder.
+        if not self._dht_warned:
+            print(f"[sensors] DHT22 read failed ({last_error}); check wiring on GPIO{self.cfg.dht_pin} and that no other program uses it", flush=True)
+            self._dht_warned = True
+        if self._last_dht:
+            return {**self._last_dht, "source": f"stale (DHT22 error: {last_error})"}
+        return {"temperatureC": self._drift("temp", 0.4, 18, 38), "humidity": self._drift("hum", 1.5, 35, 95), "source": f"simulated (DHT22 error: {last_error})"}
 
     def read_rain(self):
         if self.simulated:
