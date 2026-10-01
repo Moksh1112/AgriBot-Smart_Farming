@@ -1,0 +1,18 @@
+[Unit]
+Description=AgriBot Pi service (sensors, crop vision, Bluetooth Wi-Fi setup)
+Wants=network-online.target bluetooth.target
+After=network-online.target bluetooth.target
+
+[Service]
+Type=simple
+# Root is needed to change Wi-Fi with nmcli and to register the BLE service.
+User=root
+WorkingDirectory=/opt/agribot/pi
+EnvironmentFile=/etc/agribot.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/agribot/venv/bin/python /opt/agribot/pi/agribot_service.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

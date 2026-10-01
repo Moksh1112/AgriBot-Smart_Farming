@@ -1,3 +1,11 @@
+const crypto = require('crypto');
+
+function safeEqual(a, b) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
 function authenticateRobot(req, res, next) {
   const expectedKey = process.env.ROBOT_INGEST_KEY;
   const providedKey = req.headers['x-robot-key'];
@@ -10,7 +18,7 @@ function authenticateRobot(req, res, next) {
     });
   }
 
-  if (typeof providedKey !== 'string' || providedKey !== expectedKey) {
+  if (typeof providedKey !== 'string' || !safeEqual(providedKey, expectedKey)) {
     return res.status(401).json({
       success: false,
       message: 'Robot authentication failed.',

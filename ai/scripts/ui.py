@@ -54,13 +54,10 @@ _weights = Path(MODEL_WEIGHTS_PATH)
 if not _weights.is_absolute():
     _weights = _ai_root / _weights
 
-CLASS_NAMES = {
-    0: "Healthy",
-    1: "Bacterial Spot",
-    2: "Early Blight",
-    3: "Late Blight",
-    4: "Yellow Leaf Curl Virus",
-}
+# Class names come from the weights file itself (model.names); the training
+# order is 0 Bacterial Spot, 1 Early Blight, 2 Healthy, 3 Late Blight,
+# 4 Yellow Leaf Curl Virus. Never hardcode a different order here.
+CLASS_NAMES: dict[int, str] = {}
 
 CLASS_COLORS = {
     "Healthy":               "#22c55e",
@@ -81,6 +78,7 @@ if not _weights.exists():
 
 print(f"[AgriBot UI] Loading model: {_weights.name}")
 model = YOLO(str(_weights))
+CLASS_NAMES.update(model.names)
 print("[AgriBot UI] Model ready.")
 
 # ---------------------------------------------------------------------------

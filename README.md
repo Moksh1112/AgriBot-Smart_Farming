@@ -2,14 +2,31 @@
 
 AgriBot is an IoT-based smart farming prototype. A robot collects soil and environmental readings, sends them to an Express backend, and the farmer mobile app displays the latest information and live updates.
 
-This repository currently contains two applications:
+This repository contains these parts:
 
 - `backend`: Node.js, Express, MongoDB/Mongoose, JWT authentication, and Socket.IO.
-- `mobile-app`: React Native with Expo Router, Expo Go support, SecureStore authentication, Socket.IO updates, and a Leaflet map rendered inside WebView.
+- `flutter_app`: **the current farmer app**, written in Flutter, with the same screens and features as below. See [flutter_app/README.md](flutter_app/README.md).
+- `mobile-app`: the earlier React Native (Expo) version of the app, kept for reference. It uses React Native with Expo Router, SecureStore authentication, Socket.IO updates, a Leaflet field map, crop-disease scans, and Bluetooth Wi-Fi sharing.
+- `pi`: one lightweight Python service for the Raspberry Pi. It reads the sensors, runs the tomato-leaf disease model on the camera, takes commands from the app, and accepts Wi-Fi details from the phone over Bluetooth.
+- `ai`: training-side tools for the YOLO26s tomato-leaf disease model and its ONNX export.
 
 The physical robot is not required for development. The development simulator sends the same ingestion request that an ESP32 or Raspberry Pi will eventually send.
 
 ## Architecture
+
+```text
+                 Bluetooth LE (share Wi-Fi + server address)
+   Phone app  <------------------------------------------->  Raspberry Pi service
+      |                                                         |  sensors, camera,
+      | REST + Socket.IO (farmer JWT)                           |  ONNX disease model
+      v                                                         v
+   Express backend  <---- readings, scans, heartbeat (x-robot-key) ----
+      |    \---- queued commands (scan, refresh) returned in heartbeat ---->
+      v
+   MongoDB
+```
+
+Original sensor data flow:
 
 ```text
 ESP32 / Raspberry Pi / Simulator
@@ -69,6 +86,8 @@ Versions below are taken from the current `package.json` files. Node.js itself i
 - `expo-secure-store` `~57.0.4`: Securely stores the farmer JWT on the device.
 - `socket.io-client` `^4.8.3`: Receives live robot updates.
 - `react-native-webview` `13.16.1`: Hosts the Leaflet map HTML document.
+- `react-native-ble-manager` `^12.5.3`: Bluetooth LE connection to the Pi for Wi-Fi sharing (development build only).
+- `@expo/vector-icons` `^15.0.2`: Ionicons used across the redesigned UI.
 - `react-native-maps` `1.27.2`: Still installed, but not used by the active Robot Location screen. The active map is Leaflet inside WebView.
 - `react-native-safe-area-context` `~5.7.0`: Safe-area layout support.
 - TypeScript `~6.0.3`: Type checking and typed mobile source.
@@ -107,7 +126,17 @@ AgriBot/
 
 Use `cd backend` for server commands and `cd mobile-app` for Expo commands.
 
-## Mobile Installation
+## Flutter App (current)
+
+```bash
+cd flutter_app
+flutter pub get
+flutter run --release -d <your-phone>
+```
+
+On the login screen, tap **Server: …** to set the backend address, for example `http://192.168.1.20:5001`. The phone saves it. Bluetooth works in every build, so no special development build is needed.
+
+## Mobile Installation (Expo version)
 
 From the repository root:
 
@@ -118,6 +147,15 @@ npx expo start
 ```
 
 Expo Go is the Android application that loads the Expo project during development. Scan the QR code from the Expo terminal or browser dashboard.
+
+Expo Go runs every screen except Bluetooth, because Expo Go has no Bluetooth module. The Robot tab says so instead of crashing. To use **Find AgriBot** and **Share network**, install a development build once with a phone connected over USB:
+
+```powershell
+cd mobile-app
+npx expo run:android
+```
+
+You can also build it in the cloud with `npx eas build --profile development --platform android`. After that, `npx expo start` loads your code into the development build the same way it did into Expo Go.
 
 The Android phone and laptop normally need to be connected to the same Wi-Fi network. The phone must be able to reach the laptop's local IP address.
 
@@ -186,11 +224,13 @@ The backend reads these values with `process.env`. The simulator uses `ROBOT_ING
 
 ## Mobile Backend URL
 
-The mobile base URL is centralized in [mobile-app/src/constants/api.ts](mobile-app/src/constants/api.ts):
+The mobile base URL is centralized in [mobile-app/src/constants/api.ts](mobile-app/src/constants/api.ts). It reads `EXPO_PUBLIC_API_URL` first and falls back to the default written in that file, so you can switch laptops without editing code:
 
-```ts
-export const API_BASE_URL = 'http://YOUR-LAPTOP-IP:5000';
+```powershell
+$env:EXPO_PUBLIC_API_URL="http://YOUR-IP:5000"; npx expo start
 ```
+
+When the app shares a network with the Pi over Bluetooth, it also sends this address, so the Pi publishes to the same server the app uses.
 
 Before using a different laptop, find its local IPv4 address:
 
@@ -341,15 +381,32 @@ It returns the latest available robot data:
 
 The mobile dashboard and Location screen use the same data contract. MongoDB is accessed only by the backend, never directly by the mobile app.
 
+## Robot Control, Scans and History APIs
+
+Robot-side endpoints require `x-robot-key`. Farmer endpoints require `Authorization: Bearer <farmer-jwt>`.
+
+| Method and path | Caller | Purpose |
+| --- | --- | --- |
+| `POST /api/robot/heartbeat` | Pi, every 3 s | Reports Pi status and capabilities. The response carries queued app commands. |
+| `POST /api/robot/detections` | Pi | Stores a disease scan with its annotated JPEG and emits `robot:detection`. |
+| `POST /api/robot/commands/:id/result` | Pi | Reports whether a command worked and emits `robot:command`. |
+| `GET /api/robot/status` | App | Returns whether the robot is online (heartbeat within 15 s), its last heartbeat, and pending commands. |
+| `POST /api/robot/commands` | App | Queues `{ "type": "scan" }` or `{ "type": "publish" }`. Returns 409 when the robot is offline. |
+| `GET /api/robot/history?range=hour\|day\|week` | App | Returns readings averaged into 48 time buckets for charts. |
+| `GET /api/robot/detections` | App | Lists recent scans without images. |
+| `GET /api/robot/detections/latest` | App | Returns the newest scan with its image. |
+| `GET /api/robot/detections/:id` | App | Returns one scan with its image. |
+
 ## Socket.IO Real-Time Updates
 
 The backend and mobile client use Socket.IO `4.8.3`.
 
-Event name:
-
-```text
-robot:data
-```
+| Event | Meaning |
+| --- | --- |
+| `robot:data` | A new sensor reading was stored. |
+| `robot:status` | The robot went online or offline, or its reported status changed. |
+| `robot:detection` | A new crop-disease scan, including the annotated image. |
+| `robot:command` | A queued command finished, with `{ id, ok, message }`. |
 
 The live flow is:
 
@@ -375,7 +432,7 @@ Run it from the backend directory:
 
 ```powershell
 cd backend
-node src/tools/robot-simulator.js
+npm run simulate
 ```
 
 It:
@@ -539,33 +596,30 @@ The simulator or hardware must send the `x-robot-key` header. The value must mat
 ```text
 mobile-app/src/
 ├── app/
-│   ├── _layout.tsx       Root Expo Router stack and AuthProvider.
-│   ├── index.tsx         Authenticated/unauthenticated entry redirect.
-│   ├── login.tsx         Login form and error/loading UI.
-│   ├── signup.tsx        Signup form and error/loading UI.
-│   ├── dashboard.tsx     REST initial load, Socket.IO updates, sensor UI.
-│   └── location.tsx      REST/socket robot location state and map screen.
-├── components/
-│   ├── robot-leaflet-map.tsx Leaflet HTML/WebView map bridge.
-│   ├── sensor-card.tsx   Sensor metric presentation.
-│   ├── screen-header.tsx Shared screen headings/actions.
-│   ├── brand-lockup.tsx  AgriBot branding.
-│   ├── form-field.tsx    Shared authentication input.
-│   └── primary-button.tsx Shared authentication button.
+│   ├── _layout.tsx          Root stack with AuthProvider and RobotProvider.
+│   ├── index.tsx            Authenticated/unauthenticated entry redirect.
+│   ├── login.tsx, signup.tsx  Hatched dark hero with a white form sheet.
+│   ├── location.tsx         Full-screen field map with zoom and recenter buttons.
+│   └── (tabs)/
+│       ├── _layout.tsx      Auth guard and the floating dark tab bar.
+│       ├── dashboard.tsx    Field: map hero, Overview/Analysis/Trends tabs, metric chips, crop card, charts.
+│       ├── scan.tsx         Leaf scan: latest annotated photo, Scan now, detections, care advice, history.
+│       └── robot.tsx        Robot status, Bluetooth connect, Share network, actions, account.
+├── components/              Map, floating tab bar, metric chips, charts, Share network sheet, buttons.
 ├── constants/
-│   ├── api.ts            Centralized backend base URL.
-│   └── agri-theme.ts     AgriBot colors, spacing, and radii.
+│   ├── api.ts               Backend URL (EXPO_PUBLIC_API_URL override).
+│   ├── ble.ts               Bluetooth UUIDs shared with pi/agribot/ble.py.
+│   └── agri-theme.ts        Forest/mint palette, radii, shadows.
 ├── context/
-│   └── auth-context.tsx  JWT SecureStore lifecycle and auth state.
+│   ├── auth-context.tsx     JWT SecureStore lifecycle and the signed-in user.
+│   └── robot-context.tsx    One REST load and one Socket.IO connection shared by every screen; commands.
 ├── data/
-│   └── mock-data.ts      DashboardData types and development mock reference data.
-└── services/
-    ├── auth-service.ts          HTTP signup/login/session requests.
-    ├── robot-service.ts         Authenticated REST dashboard request.
-    └── robot-socket-service.ts  Authenticated Socket.IO connection and cleanup.
+│   ├── crop-advice.ts       Disease descriptions, treatments and field insight rules.
+│   └── mock-data.ts         Dashboard types and sample values shown before the first reading.
+├── hooks/                   Bluetooth provisioning flow, history loading, robot online state.
+├── services/                REST, Socket.IO and Bluetooth clients.
+└── types/robot.ts           Shared API types.
 ```
-
-The active dashboard and Location flows use backend data. `mock-data.ts` remains as the shared type definition and reference mock source; it is not the normal live dashboard source.
 
 ### Backend
 
@@ -576,7 +630,8 @@ backend/src/
 │   └── db.js                         Mongoose connection using MONGODB_URI.
 ├── models/
 │   ├── User.js                       Farmer account schema.
-│   └── RobotData.js                  Sensor/status/GPS schema with timestamps.
+│   ├── RobotData.js                  Sensor/status/GPS schema with timestamps.
+│   └── Detection.js                  Crop-disease scan results and annotated image.
 ├── middleware/
 │   ├── auth.middleware.js            Farmer JWT HTTP protection.
 │   ├── robot-auth.middleware.js      x-robot-key ingestion protection.
@@ -584,7 +639,9 @@ backend/src/
 ├── routes/
 │   ├── test.routes.js                GET /api/health.
 │   ├── auth.routes.js                Signup, login, and /me.
-│   └── robot.routes.js               Robot ingestion and dashboard APIs.
+│   └── robot.routes.js               Ingestion, heartbeat, commands, scans, history, dashboard.
+├── services/
+│   └── robot-presence.js             In-memory robot online state and command queue.
 └── tools/
     └── robot-simulator.js            Development-only changing robot data sender.
 ```
@@ -620,174 +677,160 @@ Do upload:
 - Root `README.md`
 - `backend/.env.example`
 
-## Hardware Handoff
+## Raspberry Pi Service
 
-## Raspberry Pi Sensor Server
+The Pi runs one process, [pi/agribot_service.py](pi/agribot_service.py), with small modules in [pi/agribot/](pi/agribot/). It replaces the earlier `sensor_server.py`. Every part is optional: missing hardware is reported to the app and the rest keeps working.
 
-The Pi implementation is [pi/sensor_server.py](pi/sensor_server.py). It reads
-the connected sensors on demand, exposes a small local HTTP API for manual
-testing, and publishes a complete reading to the existing backend. The app
-receives the published reading through the current Socket.IO flow and shows
-soil moisture, temperature, humidity, rainfall, and the pH placeholder.
+- **Sensors** publish to `POST /api/robot/data` every 30 seconds. They use DHT22, FC-37 and the MCP3008 as wired below, or simulated values when the GPIO libraries are absent.
+- **Crop vision** captures from a Pi Camera (Picamera2) or USB webcam. It runs `best.onnx` with ONNX Runtime and uploads an annotated JPEG. Expect roughly 1–3 seconds per scan on a Pi 4 or 5. It measured about 0.2 seconds on a laptop CPU.
+- **Commands** arrive in the heartbeat response, so the app's **Scan leaves now** and **Refresh** buttons work without the phone reaching the Pi directly.
+- **Bluetooth Wi-Fi sharing** advertises as `AgriBot`. The app connects, shows the Pi's Wi-Fi state, and sends a network name, password and the server address. The Pi joins the network with NetworkManager, which remembers it for later boots.
 
-### Important electrical rule
+### Wiring
 
-Raspberry Pi GPIO is **3.3 V only** and has no analog inputs. Do not connect
-any sensor's analog output (`AO`) directly to a Pi GPIO, and do not power these
-modules from 5 V if their output is wired to the MCP3008. The MCP3008 below is
-powered at 3.3 V, so every analog input must remain between 0 and 3.3 V.
+The full pin mapping covers sensors, the MCP3008, the L298N motor driver and power. It lives in [docs/PINOUT.md](docs/PINOUT.md), with a colour-coded header diagram:
 
-### Wiring (BCM GPIO names and physical Pi header pins)
+![AgriBot Raspberry Pi wiring](docs/pi-pinout.svg)
 
-All ground pins below must share a common ground.
+In short:
 
-| Device | Module pin | Raspberry Pi / MCP3008 connection |
-| --- | --- | --- |
-| MCP3008 ADC | VDD and VREF | Pi 3V3, physical pin 1 |
-| MCP3008 ADC | AGND and DGND | Pi GND, physical pin 6 |
-| MCP3008 ADC | CLK | Pi GPIO 11 / SCLK, physical pin 23 |
-| MCP3008 ADC | DOUT | Pi GPIO 9 / MISO, physical pin 21 |
-| MCP3008 ADC | DIN | Pi GPIO 10 / MOSI, physical pin 19 |
-| MCP3008 ADC | CS/SHDN | Pi GPIO 8 / CE0, physical pin 24 |
-| Capacitive soil moisture | VCC, GND | Pi 3V3 (pin 1), Pi GND (pin 6) |
-| Capacitive soil moisture | AO | MCP3008 CH0 |
-| DHT22 | VCC, GND | Pi 3V3 (pin 1), Pi GND (pin 6) |
-| DHT22 | DATA | Pi GPIO 24, physical pin 18; add a 4.7–10 kΩ pull-up resistor from DATA to 3V3 if your breakout does not already include one |
-| FC-37 rain module | VCC, GND | Pi 3V3 (pin 1), Pi GND (pin 6) |
-| FC-37 rain module | DO | Pi GPIO 27, physical pin 13 |
-| FC-37 rain module | AO | Leave disconnected; the server uses DO as a Wet/Dry reading |
-| pH sensor (future) | AO | MCP3008 CH2 (reserved in the Pi server; this is not a Pi GPIO pin) |
+- **DHT22** DATA goes to GPIO 24 (pin 18). **FC-37** DO goes to GPIO 27 (pin 13).
+- The **MCP3008** is on SPI0 (pins 19, 21, 23, 24). The soil probe goes to CH0 and the pH probe to CH2.
+- The **L298N** is on GPIO 12, 13 (PWM speed) and GPIO 5, 6, 16, 26 (direction).
 
-The FC-37 is a digital Wet/Dry indication, not a calibrated rainfall depth.
-The pH module is reserved for MCP3008 CH2 and will need calibration with buffer
-solutions when it is added. Verify its analog output is no higher than 3.3 V
-before connecting it to the MCP3008.
+Pi GPIO is 3.3 V only, and all grounds must be shared.
 
-### Pi setup and manual tests
+### Install on the Pi
 
-Enable SPI in `sudo raspi-config` (`Interface Options` → `SPI`), reboot, then
-install the required Pi packages:
+Use Raspberry Pi OS Bookworm or newer, 64-bit, because it uses NetworkManager. Clone the repository on the Pi, then copy the model from your laptop. Weights are git-ignored.
 
 ```bash
-sudo apt update
-sudo apt install -y python3-gpiozero python3-spidev
-cd AgriBot-Smart_Farming/pi
-python3 -m pip install -r requirements-sensors.txt
-cp sensor.env.example sensor.env
+# On the laptop, from the ai/ folder:
+python scripts/export_onnx.py
+scp models/weights/best.onnx PI_USER@PI_IP:~/AgriBot-Smart_Farming/ai/models/weights/
+
+# On the Pi:
+cd ~/AgriBot-Smart_Farming/pi
+cp agribot.env.example agribot.env      # set ROBOT_INGEST_KEY and the robot location
+sudo ./install.sh
 ```
 
-Open `sensor.env` and set `AGRIBOT_BACKEND_URL`, `ROBOT_INGEST_KEY`, and the
-robot's latitude/longitude. Load it and start the service:
+[pi/install.sh](pi/install.sh) does the following:
+
+- Installs the apt packages and creates `/opt/agribot/venv`.
+- Copies `agribot.env` to `/etc/agribot.env` and enables SPI.
+- Disables the old `agribot-sensors` service.
+- Installs and starts [pi/agribot.service](pi/agribot.service).
+
+The service runs as root because changing Wi-Fi and registering a Bluetooth service both need it. Follow the logs with:
 
 ```bash
-set -a
-. ./sensor.env
-set +a
-python3 sensor_server.py
+journalctl -u agribot -f
 ```
 
-From another terminal (replace `PI_IP` with the Pi's LAN address), test each
-sensor without sending data to the app:
+`ROBOT_INGEST_KEY` is the only value that must be set by hand. `AGRIBOT_BACKEND_URL` can be left as a placeholder, because the app sends its server address when it shares a network.
+
+Set `BLE_PAIRING_PIN` in `/etc/agribot.env` so that strangers nearby cannot change the robot's Wi-Fi. The app then asks for that PIN.
+
+### Share a network from the app
+
+1. Open the **Robot** tab and tap **Find AgriBot** near the robot, then **Connect**.
+2. Tap **Share network**. Pick a network the Pi can see, or type your phone hotspot's name, then enter the password.
+3. Keep **Also send server address** on. The sheet shows live progress until the Pi reports that it has joined and can reach the server.
+
+### Local diagnostics API
+
+The service also listens on port 8000 for manual tests on the LAN:
 
 ```bash
-curl http://PI_IP:8000/health
-curl http://PI_IP:8000/sensors/soil-moisture
-curl http://PI_IP:8000/sensors/dht22
-curl http://PI_IP:8000/sensors/rainfall
-curl http://PI_IP:8000/sensors/ph
-```
-
-Use the raw values reported for soil moisture to set `SOIL_DRY_VALUE` when the
-probe is dry and `SOIL_WET_VALUE` when it is in wet soil. Restart the service
-after editing `sensor.env`. Finally, publish one complete reading to the
-backend and dashboard:
-
-```bash
+curl http://PI_IP:8000/status                 # capabilities, Wi-Fi, backend connection
+curl http://PI_IP:8000/sensors                # read all sensors without publishing
+curl http://PI_IP:8000/sensors/dht22          # also: soil-moisture, rainfall, ph
 curl -X POST http://PI_IP:8000/sensors/publish
+curl -X POST http://PI_IP:8000/vision/scan    # capture, detect, upload
+curl -X POST --data-binary @leaf.jpg "http://PI_IP:8000/vision/detect?publish=1"
+curl -o latest.jpg http://PI_IP:8000/vision/latest.jpg
+curl http://PI_IP:8000/network                # Wi-Fi state and nearby networks
 ```
 
-`GET /sensors` reads every available hardware sensor but does not publish. The
-publish endpoint deliberately requires every physical sensor to return a valid
-reading, preventing partial or misleading dashboard data.
+Wi-Fi can only be changed over Bluetooth, never over this HTTP API.
 
-### Current demo/live sensor mix
+### Calibration and demo values
 
-The Pi service is configured to publish automatically every 30 seconds. It
-uses simulated values for soil moisture (`48%`) and pH (`6.8`) until their
-analog probes are connected. DHT22 temperature/humidity and FC-37 Wet/Dry are
-always read from the real hardware. Change `FAKE_SOIL_MOISTURE` and `FAKE_PH`
-in `sensor.env` to alter the demo values.
+Use the raw value from `/sensors/soil-moisture` to set `SOIL_DRY_VALUE` with the probe in dry soil and `SOIL_WET_VALUE` with it in wet soil. Until the analog probes are wired, `USE_FAKE_SOIL_MOISTURE` and `USE_FAKE_PH` publish the `FAKE_*` values. Restart the service after editing `/etc/agribot.env`.
 
-### Start automatically at Pi boot
+### Run on a laptop for testing
 
-The provided [pi/agribot-sensors.service](pi/agribot-sensors.service) is a
-systemd service. It is configured for this checkout at
-`/home/rayyanshk/Desktop/rc_car/AgriBot-Smart_Farming`; edit `User`,
-`WorkingDirectory`, and `ExecStart` in that file if your Pi username or clone
-location differs.
-
-On the Pi, install and enable it:
+The service also runs on a laptop with simulated sensors and no Bluetooth:
 
 ```bash
-cd ~/Desktop/rc_car/AgriBot-Smart_Farming/pi
-sudo install -m 600 sensor.env /etc/agribot-sensors.env
-sudo install -m 644 agribot-sensors.service /etc/systemd/system/agribot-sensors.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now agribot-sensors.service
-sudo systemctl status agribot-sensors.service
+pip install onnxruntime opencv-python-headless numpy
+cd pi
+AGRIBOT_BACKEND_URL=http://127.0.0.1:5000 ROBOT_INGEST_KEY=... CAMERA=none STATE_FILE=state.json python agribot_service.py
 ```
 
-To watch sensor and publishing logs:
+### Robot JSON contract
 
-```bash
-journalctl -u agribot-sensors.service -f
-```
-
-### Change Raspberry Pi Wi-Fi
-
-On current Raspberry Pi OS releases using NetworkManager, run this on the Pi,
-substituting your own network name and password. Do not add real credentials to
-this repository or `sensor.env`.
-
-```bash
-nmcli dev wifi connect "YOUR_WIFI_NAME" password "YOUR_WIFI_PASSWORD"
-```
-
-Confirm the connection with `nmcli device status` or `hostname -I`. If your Pi
-is currently connected remotely over Wi-Fi, this command will briefly disconnect
-that session; use a monitor/keyboard or Ethernet as a recovery path.
-
-The hardware teammate will eventually replace the simulator with firmware that:
-
-1. Reads the soil moisture sensor.
-2. Reads DHT22 temperature and humidity.
-3. Reads GPS latitude and longitude.
-4. Determines robot status.
-5. Builds the agreed JSON body.
-6. Sends `POST /api/robot/data` with the `x-robot-key` header.
-
-The hardware request must contain:
+Readings sent to `POST /api/robot/data` keep the original shape:
 
 ```json
 {
-  "sensors": {
-    "soilMoisture": 88,
-    "temperature": 36,
-    "humidity": 45,
-    "rainfall": 12,
-    "ph": null
-  },
-  "robot": {
-    "status": "online"
-  },
-  "location": {
-    "latitude": 19.047838,
-    "longitude": 72.872712
-  }
+  "sensors": { "soilMoisture": 48, "temperature": 29, "humidity": 64, "rainfall": 0, "ph": 6.8 },
+  "robot": { "status": "online" },
+  "location": { "latitude": 19.047838, "longitude": 72.872712 }
 }
 ```
 
 The backend generates `robot.lastUpdated`, MongoDB `_id`, `createdAt`, and `updatedAt`. The hardware must not send or store farmer JWTs, MongoDB credentials, JWT secrets, or the robot key in the JSON body.
+
+## Hosting the Backend
+
+The backend runs as a single Node.js process. It has no local files and stores everything in MongoDB, so it deploys to any Node or Docker host.
+
+### What the backend expects from the host
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `MONGODB_URI` | Yes | Use MongoDB Atlas. In Atlas, open *Network Access* and allow the host's IPs, or `0.0.0.0/0` for most free hosts. |
+| `JWT_SECRET` | Yes | At least 32 random characters when `NODE_ENV=production`. |
+| `ROBOT_INGEST_KEY` | Yes | At least 24 characters. Put the same value in the Pi's `/etc/agribot.env`. |
+| `NODE_ENV` | Recommended | `production` enforces strong secrets. |
+| `PORT` | Set by host | The server listens on whatever port the platform provides. |
+| `CORS_ORIGINS` | Optional | Comma-separated browser origins. Defaults to `*`. The phone app and the Pi are not browsers and are unaffected. |
+| `JWT_EXPIRES_IN` | Optional | How long a login lasts. Defaults to `30d`. |
+
+Production behaviour:
+
+- `GET /api/health` returns 503 while the database is down, so the platform can restart the service.
+- On SIGTERM the server finishes in-flight requests and closes the database cleanly.
+- Login and signup are limited to 20 attempts per IP every 15 minutes.
+- Robot keys are compared in constant time.
+- Real client IPs are read from the host's proxy.
+
+Run **one instance only**. Robot online status and the app's command queue are kept in memory.
+
+### Render (free tier works)
+
+1. Push this repository to GitHub.
+2. In Render, choose **New > Blueprint** and select the repository. [render.yaml](render.yaml) creates the `agribot-backend` service with a generated `JWT_SECRET`.
+3. Enter `MONGODB_URI` and `ROBOT_INGEST_KEY` when asked.
+4. After deploy, open `https://<your-service>.onrender.com/api/health`.
+
+Free services sleep after 15 minutes without traffic. The Pi's heartbeat, every 3 seconds, keeps the service awake while the robot is on.
+
+### Any Docker host (Railway, Fly.io, Cloud Run, a VPS)
+
+```bash
+cd backend
+docker build -t agribot-backend .
+docker run -p 5000:5000 --env-file .env -e NODE_ENV=production agribot-backend
+```
+
+### Point the app and the robot at the hosted URL
+
+- **Flutter app**: on the login screen, tap **Server: …** and enter `https://<your-service>.onrender.com`, then tap **Test**.
+- **Raspberry Pi**: share a network from the app's Robot tab with **Also send server address** on, and the Pi saves the hosted URL. You can also set `AGRIBOT_BACKEND_URL` in `/etc/agribot.env`.
+- **Simulator**: `ROBOT_SIM_URL=https://<your-service>.onrender.com npm run simulate`.
 
 ## Clean Repository Rules
 

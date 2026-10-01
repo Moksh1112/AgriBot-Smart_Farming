@@ -1,12 +1,13 @@
 import * as SecureStore from 'expo-secure-store';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { getCurrentUser, loginRequest, signupRequest } from '@/services/auth-service';
+import { getCurrentUser, loginRequest, signupRequest, type AuthUser } from '@/services/auth-service';
 
 export const AUTH_TOKEN_KEY = 'AGRIBOT_AUTH_TOKEN';
 
 type AuthContextValue = {
   isAuthenticated: boolean;
+  user: AuthUser | null;
   isRestoring: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
@@ -18,10 +19,12 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await loginRequest(email, password);
     await SecureStore.setItemAsync(AUTH_TOKEN_KEY, response.token);
+    setUser(response.user ?? null);
     setIsAuthenticated(true);
   }, []);
 
@@ -29,11 +32,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signupRequest(name, email, password);
     const response = await loginRequest(email, password);
     await SecureStore.setItemAsync(AUTH_TOKEN_KEY, response.token);
+    setUser(response.user ?? null);
     setIsAuthenticated(true);
   }, []);
 
   const logout = useCallback(async () => {
     await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+    setUser(null);
     setIsAuthenticated(false);
   }, []);
 
@@ -43,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
         if (!token) return;
 
-        await getCurrentUser(token);
+        setUser((await getCurrentUser(token)) ?? null);
         setIsAuthenticated(true);
       } catch {
         await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
@@ -58,11 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({
     isAuthenticated,
+    user,
     isRestoring,
     login,
     signup,
     logout,
-  }), [isAuthenticated, isRestoring, login, signup, logout]);
+  }), [isAuthenticated, user, isRestoring, login, signup, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

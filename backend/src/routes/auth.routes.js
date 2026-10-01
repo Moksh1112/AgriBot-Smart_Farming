@@ -3,9 +3,12 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 
 const authenticateToken = require('../middleware/auth.middleware');
+const rateLimit = require('../middleware/rate-limit.middleware');
 const User = require('../models/User');
 
 const router = express.Router();
+// Slows password guessing on a public server: 20 attempts per IP per 15 minutes.
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too many attempts. Please wait a few minutes and try again.' });
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function safeUser(user) {
@@ -17,7 +20,7 @@ function safeUser(user) {
   };
 }
 
-router.post('/signup', async (req, res) => {
+router.post('/signup', authLimiter, async (req, res) => {
   const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
@@ -74,7 +77,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -103,7 +106,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const token = jwt.sign({ id: user._id.toString() }, process.env.JWT_SECRET);
+    const token = jwt.sign({ id: user._id.toString() }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '30d' });
 
     return res.json({
       success: true,

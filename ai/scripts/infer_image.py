@@ -11,10 +11,10 @@ Usage (from the ai/ directory with the venv activated):
     python scripts/infer_image.py test_images/leaf.jpg --no-save
     python scripts/infer_image.py test_images/             # whole folder
 
-Classes (as trained):
-    0 — Healthy
-    1 — Bacterial Spot
-    2 — Early Blight
+Classes (as trained, read from the weights at runtime):
+    0 — Bacterial Spot
+    1 — Early Blight
+    2 — Healthy
     3 — Late Blight
     4 — Yellow Leaf Curl Virus
 """
@@ -69,13 +69,10 @@ _weights = Path(MODEL_WEIGHTS_PATH)
 if not _weights.is_absolute():
     _weights = _ai_root / _weights
 
-CLASS_NAMES = {
-    0: "Healthy",
-    1: "Bacterial Spot",
-    2: "Early Blight",
-    3: "Late Blight",
-    4: "Yellow Leaf Curl Virus",
-}
+# Class names come from the weights file itself (model.names); the training
+# order is 0 Bacterial Spot, 1 Early Blight, 2 Healthy, 3 Late Blight,
+# 4 Yellow Leaf Curl Virus. Never hardcode a different order here.
+CLASS_NAMES: dict[int, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +191,7 @@ def main() -> None:
 
     # Load model once; run on each image individually for clear per-image output.
     model = YOLO(str(weights_path))
+    CLASS_NAMES.update(model.names)
 
     save_dir = _ai_root / "runs" / "detect"
 

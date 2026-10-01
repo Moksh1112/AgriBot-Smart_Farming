@@ -6,6 +6,8 @@ node_modules/
 .env.*
 !.env.example
 pi/sensor.env
+pi/agribot.env
+pi/state.json
 
 # Logs
 *.log
@@ -40,3 +42,6 @@ ai/dataset/
 ai/test_images/
 ai/runs/
 ai/model.env
+
+# Extracted copy of a .pt archive (repack with: zip -0 -r ai/models/weights/best.pt best)
+best/

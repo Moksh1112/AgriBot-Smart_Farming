@@ -129,7 +129,7 @@ python scripts/ui.py
 
 ## Model
 
-**Architecture:** YOLO12 Small (via Ultralytics)
+**Architecture:** YOLO26 Small (via Ultralytics, 640 px input)
 **Task:** Tomato leaf disease object detection
 **Trained on:** Roboflow tomato leaf disease dataset
 
@@ -137,11 +137,14 @@ python scripts/ui.py
 
 | ID | Class |
 |----|-------|
-| 0  | Healthy |
-| 1  | Bacterial Spot |
-| 2  | Early Blight |
+| 0  | Bacterial Spot |
+| 1  | Early Blight |
+| 2  | Healthy |
 | 3  | Late Blight |
 | 4  | Yellow Leaf Curl Virus |
+
+The scripts read these names from the weights file (`model.names`), so they
+always match the trained order.
 
 ---
 
@@ -232,7 +235,20 @@ The following are local-only and will never be committed:
 - [x] Stage 1 — Local image inference
 - [x] Stage 1b — Local testing UI (Gradio)
 - [ ] Stage 2 — Live webcam inference
-- [ ] Stage 3 — Raspberry Pi camera inference
-- [ ] Stage 4 — Integration with AgriBot backend
+- [x] Stage 3 — Raspberry Pi camera inference (ONNX Runtime, see `pi/`)
+- [x] Stage 4 — Integration with AgriBot backend and mobile app
+
+## Deploying to the Raspberry Pi
+
+The Pi does not run PyTorch. Export the weights to ONNX on a laptop and copy
+the file across:
+
+```bash
+python scripts/export_onnx.py          # writes models/weights/best.onnx
+scp models/weights/best.onnx PI_USER@PI_IP:~/AgriBot-Smart_Farming/ai/models/weights/
+```
+
+The Pi service (`pi/agribot/vision.py`) letterboxes camera frames to 640 px,
+runs ONNX Runtime, applies NMS and uploads an annotated JPEG with the results.
 
 

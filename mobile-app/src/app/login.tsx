@@ -1,15 +1,17 @@
 import { Link, Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BrandLockup } from '@/components/brand-lockup';
+import { AuthHero } from '@/components/auth-hero';
 import { FormField } from '@/components/form-field';
 import { PrimaryButton } from '@/components/primary-button';
-import { AgriColors, AgriRadius, AgriSpacing } from '@/constants/agri-theme';
+import { AgriColors, AgriRadius } from '@/constants/agri-theme';
 import { useAuth } from '@/context/auth-context';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isAuthenticated, login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,35 +39,26 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <BrandLockup />
-        <View style={styles.intro}>
-          <Text style={styles.kicker}>FARMER MOBILE APP</Text>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to monitor your AgriBot and stay close to your field.</Text>
-        </View>
-        <View style={styles.form}>
-          <FormField keyboardType="email-address" label="Email address" onChangeText={setEmail} placeholder="farmer@example.com" value={email} />
-          <FormField label="Password" onChangeText={setPassword} placeholder="Enter your password" secureTextEntry value={password} />
+      <ScrollView bounces={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <AuthHero subtitle="Monitor your field, scan crops for disease and manage your AgriBot." title="Welcome back" />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
+          <FormField autoComplete="email" keyboardType="email-address" label="Email address" onChangeText={setEmail} placeholder="farmer@example.com" value={email} />
+          <FormField autoComplete="password" label="Password" onChangeText={setPassword} placeholder="Enter your password" secureTextEntry value={password} />
           {!!error && <Text style={styles.error}>{error}</Text>}
-          <PrimaryButton label="Log in" loading={isLoading} onPress={handleLogin} />
+          <PrimaryButton icon="log-in-outline" label="Log in" loading={isLoading} onPress={handleLogin} />
+          <View style={styles.footer}><Text style={styles.footerText}>New to AgriBot?</Text><Link href="/signup" style={styles.link}>Create an account</Link></View>
         </View>
-        <View style={styles.footer}><Text style={styles.footerText}>New to Agri Bot?</Text><Link href="/signup" style={styles.link}>Create an account</Link></View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: AgriColors.background, flex: 1 },
-  content: { flexGrow: 1, justifyContent: 'center', padding: AgriSpacing.lg },
-  intro: { marginBottom: AgriSpacing.lg, marginTop: AgriSpacing.xxl },
-  kicker: { color: AgriColors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1.4, marginBottom: AgriSpacing.sm },
-  title: { color: AgriColors.text, fontSize: 34, fontWeight: '800', letterSpacing: -0.5, marginBottom: AgriSpacing.sm },
-  subtitle: { color: AgriColors.textMuted, fontSize: 16, lineHeight: 24, maxWidth: 330 },
-  form: { backgroundColor: AgriColors.surface, borderColor: AgriColors.border, borderRadius: AgriRadius.lg, borderWidth: 1, padding: AgriSpacing.md },
-  error: { backgroundColor: '#FBE9E7', borderRadius: AgriRadius.sm, color: AgriColors.error, fontSize: 13, marginTop: AgriSpacing.sm, padding: AgriSpacing.sm },
-  footer: { alignItems: 'center', flexDirection: 'row', gap: 5, justifyContent: 'center', marginTop: AgriSpacing.lg },
+  screen: { backgroundColor: AgriColors.forest, flex: 1 },
+  content: { flexGrow: 1 },
+  sheet: { backgroundColor: AgriColors.surface, borderTopLeftRadius: AgriRadius.xl, borderTopRightRadius: AgriRadius.xl, flexGrow: 1, marginTop: -32, padding: 22, paddingTop: 16 },
+  error: { backgroundColor: '#FBE3E1', borderRadius: AgriRadius.sm, color: AgriColors.error, fontSize: 13, marginTop: 14, padding: 12 },
+  footer: { alignItems: 'center', flexDirection: 'row', gap: 5, justifyContent: 'center', marginTop: 22 },
   footerText: { color: AgriColors.textMuted, fontSize: 14 },
   link: { color: AgriColors.primary, fontSize: 14, fontWeight: '800' },
 });

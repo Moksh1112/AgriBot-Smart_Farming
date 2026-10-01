@@ -1,0 +1,7 @@
+# AgriBot Pi service. Install with:  ./install.sh  (or see README)
+# System packages (apt) provide: python3-numpy python3-opencv python3-gpiozero
+# python3-spidev python3-picamera2 python3-dbus python3-gi
+onnxruntime>=1.17
+bluezero>=0.9
+adafruit-blinka
+adafruit-circuitpython-dht
