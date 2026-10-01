@@ -60,6 +60,12 @@ export function Story() {
 
     // Scroll sets a target; the scene eases towards it every frame so motion stays fluid.
     let current = sectionProgress(section);
+    // Load intro: hold the rover centred, then glide it into the hero layout.
+    // Skipped for reduced motion or when the page opens part-way down.
+    const INTRO_HOLD_MS = 700;
+    const INTRO_MOVE_MS = 1500;
+    let intro = reduceMotion || current > 0.01 ? 1 : 0;
+    let introStart = 0;
     let last = performance.now();
     let first = true;
 
@@ -113,13 +119,21 @@ export function Story() {
       const p = current;
       const mobile = isMobile();
 
-      scene.update(p, now / 1000);
+      if (intro < 1) {
+        const pageReady = document.documentElement.dataset.ready === 'true';
+        if (pageReady && !introStart) introStart = now + INTRO_HOLD_MS;
+        if (p > 0.004) intro = Math.min(1, intro + dt * 2.5); // visitor scrolled early: finish quickly
+        else if (introStart && now > introStart) intro = Math.min(1, Math.max(intro, (now - introStart) / INTRO_MOVE_MS));
+      }
+      scene.update(p, now / 1000, intro);
       if (first) {
         first = false;
         announceReady();
       }
       barRef.current!.style.transform = `scaleX(${p})`;
-      hintRef.current!.style.opacity = String(1 - clamp01(p / 0.03));
+      // Hero copy and scroll hint appear as the rover settles into place.
+      const introText = clamp01((intro - 0.45) / 0.55);
+      hintRef.current!.style.opacity = String((1 - clamp01(p / 0.03)) * introText);
       // Light studio first (no scrim, dark text), the field with a text scrim, then no scrim for the top view.
       const studio = 1 - clamp01((p - 0.1) / 0.06);
       hatchRef.current!.style.opacity = String(studio);
@@ -129,7 +143,8 @@ export function Story() {
         const el = chapterRefs.current[i];
         if (!el) return;
         // The first chapter is fully visible at the top; the last stays to the end.
-        const o = (ch.start <= 0 ? 1 : clamp01((p - ch.start) / 0.025)) * (ch.end >= 1 ? 1 : clamp01((ch.end - p) / 0.025));
+        let o = (ch.start <= 0 ? 1 : clamp01((p - ch.start) / 0.025)) * (ch.end >= 1 ? 1 : clamp01((ch.end - p) / 0.025));
+        if (ch.hero) o *= ease(introText);
         const shift = (1 - o) * (p < (ch.start + ch.end) / 2 ? 30 : -30);
         el.style.opacity = String(o);
         el.style.transform = ch.top || mobile ? `translateY(${shift}px)` : `translateY(calc(-50% + ${shift}px))`;

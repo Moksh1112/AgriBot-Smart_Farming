@@ -1,6 +1,6 @@
 # AgriBot Raspberry Pi pin mapping
 
-This is the wiring for every module on the AgriBot Raspberry Pi: sensors, the analog-to-digital converter, the motor driver and power. It works on a Raspberry Pi 3B+, 4 or 5, which all share the same 40-pin header. Pins use **BCM GPIO numbers**, which is what the code uses, alongside the **physical header pin**.
+This is the wiring for every module on the AgriBot Raspberry Pi: sensors, the analog-to-digital converter, the motor driver and power. AgriBot uses a **Raspberry Pi 5**. The 40-pin header is the same as on the Pi 3B+ and 4, so the mapping also works on those boards. Pins use **BCM GPIO numbers**, which is what the code uses, alongside the **physical header pin**.
 
 ![AgriBot Raspberry Pi 40-pin wiring](pi-pinout.svg)
 
@@ -12,7 +12,7 @@ This is the wiring for every module on the AgriBot Raspberry Pi: sensors, the an
 2. **Power sensors from 3V3, not 5V**, whenever their output goes to the Pi or the MCP3008.
 3. **Never power motors from the Pi.** Motors draw several amps and create electrical noise. They get their own battery through the L298N.
 4. **Connect all grounds together.** Pi GND, L298N GND, battery negative and sensor grounds must be joined, or the motor driver will not read the Pi's signals reliably.
-5. **Do not use the L298N's 5 V output to power the Pi.** Its regulator browns out under motor load. Use a 5 V / 3 A buck converter from the battery, into the USB-C port or pins 2 and 4.
+5. **Do not use the L298N's 5 V output to power the Pi.** Its regulator browns out under motor load. The Pi 5 needs a 5 V / 5 A (25 W) buck converter from the battery, into the USB-C port or pins 2 and 4. With only 3 A it still boots, but it limits USB current, which can starve a USB webcam.
 
 ## Sensors
 
@@ -32,7 +32,7 @@ This is the wiring for every module on the AgriBot Raspberry Pi: sensors, the an
 | FC-37 rain module | VCC / GND | Pi 3V3 / GND | 17 / 9 | — | |
 | FC-37 rain module | DO | Pi GPIO | 13 | GPIO 27 | `RAIN_DO_PIN=27`. Reads LOW when wet (`RAIN_WET_DIGITAL_VALUE=0`). |
 | FC-37 rain module | AO | not connected | — | — | The service uses the digital wet/dry output only |
-| Camera | Ribbon | CSI camera port | — | — | Or a USB webcam. `CAMERA=auto` tries both. |
+| Camera | Ribbon | CAM/DISP 0 port | — | — | The Pi 5 uses a narrower 22-pin connector, so older camera modules need a 22-to-15-pin ribbon. A USB webcam also works. `CAMERA=auto` tries both. |
 
 All 3V3 pins (1 and 17) are the same supply, and all GND pins are the same ground. Spreading modules across them just keeps the wiring tidy.
 
@@ -72,7 +72,7 @@ If you later switch to a **TB6612FNG**, which runs cooler and wastes less batter
 ```text
  Battery 7–12 V ──┬── fuse ── switch ──► L298N +12V (VS) ──► motors
                   │
-                  └──► 5 V / 3 A buck converter ──► Pi USB-C  (or pins 2 / 4)
+                  └──► 5 V / 5 A buck converter ──► Pi 5 USB-C  (or pins 2 / 4)
 
  Battery − ── L298N GND ── Pi GND (pin 39) ── all sensor grounds
 ```
@@ -120,7 +120,7 @@ flowchart LR
 <!-- PIN-TABLE:START -->
 | Pin | Name | Connects to | | Pin | Name | Connects to |
 |---:|---|---|---|---:|---|---|
-| 1 | 3V3 | MCP3008 VDD + VREF, soil probe VCC | | 2 | 5V | Pi power in (from 5 V buck converter) |
+| 1 | 3V3 | MCP3008 VDD + VREF, soil probe VCC | | 2 | 5V | Pi 5 power in (5 V / 5 A buck converter) |
 | 3 | GPIO2 / SDA | I2C (keep free for future sensors) | | 4 | 5V | Pi power in |
 | 5 | GPIO3 / SCL | I2C (keep free for future sensors) | | 6 | GND | MCP3008 AGND + DGND, sensor grounds |
 | 7 | GPIO4 | — | | 8 | GPIO14 / TXD | UART (GPS module later) |

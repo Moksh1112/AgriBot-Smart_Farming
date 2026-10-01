@@ -607,7 +607,7 @@ Do upload:
 The Pi runs one process, [pi/agribot_service.py](pi/agribot_service.py), with small modules in [pi/agribot/](pi/agribot/). It replaces the earlier `sensor_server.py`. Every part is optional: missing hardware is reported to the app and the rest keeps working.
 
 - **Sensors** publish to `POST /api/robot/data` every 30 seconds. They use DHT22, FC-37 and the MCP3008 as wired below, or simulated values when the GPIO libraries are absent.
-- **Crop vision** captures from a Pi Camera (Picamera2) or USB webcam. It runs `best.onnx` with ONNX Runtime and uploads an annotated JPEG. Expect roughly 1–3 seconds per scan on a Pi 4 or 5. It measured about 0.2 seconds on a laptop CPU.
+- **Crop vision** captures from a Pi Camera (Picamera2) or USB webcam. It runs `best.onnx` with ONNX Runtime and uploads an annotated JPEG. Expect roughly 1–2 seconds per scan on the Raspberry Pi 5. It measured about 0.2 seconds on a laptop CPU.
 - **Commands** arrive in the heartbeat response, so the app's **Scan leaves now** and **Refresh** buttons work without the phone reaching the Pi directly.
 - **Bluetooth Wi-Fi sharing** advertises as `AgriBot`. The app connects, shows the Pi's Wi-Fi state, and sends a network name, password and the server address. The Pi joins the network with NetworkManager, which remembers it for later boots.
 

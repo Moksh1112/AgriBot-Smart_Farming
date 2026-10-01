@@ -26,7 +26,7 @@ GROUPS = {
 # physical pin -> (pin name, group, what it connects to)
 PINS = {
     1: ("3V3", "3v3", "MCP3008 VDD + VREF, soil probe VCC"),
-    2: ("5V", "5v", "Pi power in (from 5 V buck converter)"),
+    2: ("5V", "5v", "Pi 5 power in (5 V / 5 A buck converter)"),
     3: ("GPIO2 / SDA", "reserved", "I2C (keep free for future sensors)"),
     4: ("5V", "5v", "Pi power in"),
     5: ("GPIO3 / SCL", "reserved", "I2C (keep free for future sensors)"),

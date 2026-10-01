@@ -15,7 +15,7 @@ export interface Chapter {
 /** Story chapters; start/end are 0..1 progress through the 3D section. */
 export const CHAPTERS: Chapter[] = [
   { start: 0, end: 0.1, eyebrow: 'Introducing AgriBot', title: 'The field robot that sees disease', accent: 'before you do.', body: 'Scroll to follow one patrol through a tomato field.', hero: true },
-  { start: 0.12, end: 0.25, eyebrow: '01 · Patrol', title: 'Drives every row, so you don’t have to.', body: 'Six-wheel rocker-bogie suspension rolls over furrows and mud while live readings stream to your phone.' },
+  { start: 0.12, end: 0.25, eyebrow: '01 · Patrol', title: 'Drives every row, so you don’t have to.', body: 'Four-wheel drive with chunky treads rolls over furrows and mud while live readings stream to your phone.' },
   { start: 0.27, end: 0.385, eyebrow: '02 · Target', title: 'Locks on to the plant that looks wrong.', body: 'The camera mast pans across the canopy and stops on a suspicious leaf.' },
   { start: 0.4, end: 0.53, eyebrow: '03 · Vision', title: 'On-board AI names the disease in under a second.', body: 'A YOLO model trained on tomato leaves runs right on the robot — healthy, bacterial spot, early blight, late blight or leaf curl virus.' },
   { start: 0.55, end: 0.67, eyebrow: '04 · Sense', title: 'Then it checks the soil around the plant.', body: 'The sensor arm probes moisture and pH while onboard sensors read temperature, humidity and rain.' },
@@ -71,13 +71,13 @@ export const SPECS: { title: string; text: string }[] = [
 export const APK_PATH = '/downloads/agribot.apk';
 
 /** Callouts for the top-view finale; ids match the anchors in lib/scene.ts. */
-export const SENSORS: { id: 'camera' | 'probe' | 'dht' | 'rain' | 'pi' | 'radio' | 'solar' | 'drive'; name: string; detail: string }[] = [
+export const SENSORS: { id: 'camera' | 'probe' | 'dht' | 'rain' | 'pi' | 'radio' | 'power' | 'drive'; name: string; detail: string }[] = [
   { id: 'camera', name: 'Camera + AI', detail: 'Pi Camera · YOLO26s on ONNX Runtime' },
   { id: 'probe', name: 'Soil probe', detail: 'Capacitive moisture + pH via MCP3008' },
   { id: 'dht', name: 'DHT22', detail: 'Air temperature & humidity' },
   { id: 'rain', name: 'FC-37 rain sensor', detail: 'Detects rain on the deck' },
-  { id: 'pi', name: 'Raspberry Pi 4', detail: 'MCP3008 ADC · runs everything on board' },
+  { id: 'pi', name: 'Raspberry Pi 5', detail: 'MCP3008 ADC · runs everything on board' },
   { id: 'radio', name: 'Bluetooth + Wi-Fi', detail: 'Phone setup and live sync' },
-  { id: 'solar', name: 'Solar panel', detail: 'Tops up the battery in the field' },
-  { id: 'drive', name: 'Rocker-bogie drive', detail: 'Six wheels for furrows and mud' },
+  { id: 'power', name: 'Battery bay', detail: 'Battery pack + 5 V buck for the Pi 5' },
+  { id: 'drive', name: 'Four-wheel drive', detail: 'Geared DC motors on an L298N driver' },
 ];

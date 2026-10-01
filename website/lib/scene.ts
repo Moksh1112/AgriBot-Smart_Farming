@@ -13,11 +13,12 @@ interface StoryKey {
   arm: number;
   scan: number;
 }
-export type SensorId = 'camera' | 'probe' | 'dht' | 'rain' | 'pi' | 'radio' | 'solar' | 'drive';
+export type SensorId = 'camera' | 'probe' | 'dht' | 'rain' | 'pi' | 'radio' | 'power' | 'drive';
 
 export interface SceneApi {
   resize(width: number, height: number): void;
-  update(progress: number, time: number): void;
+  /** intro: 0 = rover centred on load, 1 = settled into the hero layout. */
+  update(progress: number, time: number, intro?: number): void;
   plantRect(width: number, height: number): { x: number; y: number; w: number; h: number };
   /** Screen positions (CSS px) of the labelled rover parts for the final top-view callouts. */
   anchors(width: number, height: number): { id: SensorId; x: number; y: number }[];
@@ -33,6 +34,8 @@ const PLANT_SPACING = 0.75;
 const FIELD_START = -2.2; // bare headland before this x, where the hero shot happens
 const TARGET = new THREE.Vector3(8.6, 0, -1.3); // the diseased plant (rover drives along z = 0)
 const STOP_X = 7.6; // where the rover parks next to the target
+const WHEEL_R = 0.3;
+const WHEEL_Z = [-0.56, 0.56];
 const HERO_X = -14; // studio hero position, well clear of the crop rows
 const STUDIO_RADIUS = 9.5;
 
@@ -174,16 +177,16 @@ function noiseTextures(opts: { size: number; repeat: number; dark: RGB; light: R
 const soilTextures = (repeat: number, seed = 3) =>
   noiseTextures({ size: 512, repeat, dark: [92, 62, 40], light: [168, 132, 94], seed, speckles: 700 });
 
-const solarTexture = () =>
+const ventTexture = () =>
   canvasTexture(256, (g, s) => {
-    g.fillStyle = '#16233f';
+    // Battery-bay lid: matte panel with vent slots.
+    g.fillStyle = '#2b3430';
     g.fillRect(0, 0, s, s);
-    g.strokeStyle = 'rgba(160,190,230,0.55)';
-    g.lineWidth = 2;
-    for (let i = 0; i <= 6; i++) {
-      g.beginPath(); g.moveTo((i * s) / 6, 0); g.lineTo((i * s) / 6, s); g.stroke();
-      g.beginPath(); g.moveTo(0, (i * s) / 6); g.lineTo(s, (i * s) / 6); g.stroke();
-    }
+    g.fillStyle = '#1a201d';
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++) g.fillRect(s * (0.14 + c * 0.42), s * (0.16 + r * 0.19), s * 0.3, s * 0.06);
+    g.strokeStyle = 'rgba(255,255,255,0.08)';
+    g.lineWidth = 3;
+    g.strokeRect(4, 4, s - 8, s - 8);
   });
 
 const treadTexture = () =>
@@ -462,9 +465,10 @@ function makeRover() {
     label.scale.y = 0.32;
     rover.add(label);
   }
-  const solar = shadow(new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.04, 0.78), new THREE.MeshPhysicalMaterial({ map: solarTexture(), roughness: 0.18, metalness: 0.4, clearcoat: 1, clearcoatRoughness: 0.05 })));
-  solar.position.set(0, 0.98, 0.1);
-  rover.add(solar);
+  // Battery bay lid (battery, L298N driver and 5 V buck converter underneath).
+  const lid = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.98, 0.035, 0.7, 2, 0.015), new THREE.MeshStandardMaterial({ map: ventTexture(), roughness: 0.7, metalness: 0.1 })));
+  lid.position.set(0, 0.965, 0.08);
+  rover.add(lid);
   const bumper = shadow(new THREE.Mesh(new RoundedBoxGeometry(1.1, 0.14, 0.12, 2, 0.04), greenMat));
   bumper.position.set(0, 0.62, 0.88);
   rover.add(bumper);
@@ -489,17 +493,17 @@ function makeRover() {
   piWindow.position.set(0.05, 0.956, 0.68);
   rover.add(piWindow);
 
-  // Wheels with rocker-bogie arms.
+  // Four wheels, each on its own geared DC motor (skid steering).
   const wheels: THREE.Group[] = [];
-  const tireGeo = new THREE.CylinderGeometry(0.27, 0.27, 0.22, 24);
+  const tireGeo = new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, 0.24, 28);
   tireGeo.rotateZ(Math.PI / 2);
   const tireMat = new THREE.MeshStandardMaterial({ map: treadTexture(), roughness: 0.95 });
-  const hubGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.235, 16);
+  const hubGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.255, 16);
   hubGeo.rotateZ(Math.PI / 2);
   for (const side of [-1, 1]) {
-    for (const z of [-0.62, 0, 0.62]) {
+    for (const z of WHEEL_Z) {
       const spin = new THREE.Group();
-      spin.position.set(side * 0.8, 0.27, z);
+      spin.position.set(side * 0.8, WHEEL_R, z);
       spin.add(shadow(new THREE.Mesh(tireGeo, tireMat)));
       const hub = new THREE.Mesh(hubGeo, greenMat);
       spin.add(hub);
@@ -508,13 +512,15 @@ function makeRover() {
       rover.add(spin);
       wheels.push(spin);
     }
-    const rocker = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 1.36), metalMat));
-    rocker.position.set(side * 0.68, 0.45, 0);
-    rover.add(rocker);
-    for (const z of [-0.62, 0, 0.62]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.05), metalMat);
-      leg.position.set(side * 0.68, 0.35, z);
-      rover.add(leg);
+    for (const z of WHEEL_Z) {
+      // Gear motor between chassis and wheel.
+      const motor = shadow(new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.2, 14), darkMat));
+      motor.rotation.z = Math.PI / 2;
+      motor.position.set(side * 0.6, WHEEL_R, z);
+      rover.add(motor);
+      const bracket = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.16), metalMat));
+      bracket.position.set(side * 0.53, WHEEL_R + 0.08, z);
+      rover.add(bracket);
     }
   }
 
@@ -592,8 +598,8 @@ function makeRover() {
     rain: rain.position.clone(),
     pi: piWindow.position.clone(),
     radio: new THREE.Vector3(0.42, 1.48, -0.7),
-    solar: new THREE.Vector3(-0.15, 1.0, 0.25),
-    drive: new THREE.Vector3(-0.8, 0.55, -0.62),
+    power: new THREE.Vector3(-0.15, 0.99, 0.25),
+    drive: new THREE.Vector3(-0.8, WHEEL_R * 2, -WHEEL_Z[1]),
   };
 
   return { rover, wheels, pan, tilt, lensPoint, arm: { shoulder, upper, fore, wrist, L1, L2, PROBE }, led, anchors };
@@ -612,7 +618,7 @@ export function createScene(canvas: HTMLCanvasElement, { mobile = false }: { mob
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xeedcb6, 18, 70);
   scene.add(makeSky());
-  // Soft studio reflections on the rover's glossy body and solar panel.
+  // Soft studio reflections on the rover's glossy body.
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.45;
@@ -740,14 +746,23 @@ export function createScene(canvas: HTMLCanvasElement, { mobile = false }: { mob
   }
 
   /** Render the scene for story progress p (0..1) at time t (seconds). */
-  function update(p: number, time: number) {
+  // Opening pose on load: rover centred in a closer, front three-quarter view.
+  const INTRO_CAM: Vec3 = [4.6, 0.95, 1.6];
+  const INTRO_LOOK: Vec3 = [0, 0.62, 0];
+
+  function update(p: number, time: number, intro = 1) {
     const k = sampleKeys(p);
+    if (intro < 1) {
+      const t = smooth(clamp01(intro));
+      k.cam = [lerp(INTRO_CAM[0], k.cam[0], t), lerp(INTRO_CAM[1], k.cam[1], t), lerp(INTRO_CAM[2], k.cam[2], t)];
+      k.look = [lerp(INTRO_LOOK[0], k.look[0], t), lerp(INTRO_LOOK[1], k.look[1], t), lerp(INTRO_LOOK[2], k.look[2], t)];
+    }
     const studioT = 1 - clamp01((p - 0.1) / 0.06);
     studio.visible = studioT > 0.001;
     (studioSky.material as THREE.ShaderMaterial).uniforms.opacity.value = studioT;
     studioFloor.material.opacity = studioT;
     bot.rover.position.set(k.x, 0, 0);
-    bot.wheels.forEach((w) => (w.rotation.x = (k.x - x0) / 0.27));
+    bot.wheels.forEach((w) => (w.rotation.x = (k.x - x0) / WHEEL_R));
     bot.rover.updateMatrixWorld();
 
     // Mast aims at the plant.
@@ -766,7 +781,7 @@ export function createScene(canvas: HTMLCanvasElement, { mobile = false }: { mob
     camera.up.set(0, 1, 0).lerp(mobile ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, -1), topT).normalize();
     camera.lookAt(k.x + k.look[0], k.look[1], k.look[2]);
     // Wide screens: keep the subject right of the text column, re-centring for the top view.
-    if (viewW > 760) camera.setViewOffset(viewW, viewH, -viewW * 0.15 * (1 - smooth(clamp01((p - 0.84) / 0.06))), 0, viewW, viewH);
+    if (viewW > 760) camera.setViewOffset(viewW, viewH, -viewW * 0.15 * smooth(clamp01(intro)) * (1 - smooth(clamp01((p - 0.84) / 0.06))), 0, viewW, viewH);
     else camera.clearViewOffset();
 
     // Shadow frustum follows the action.
@@ -805,7 +820,7 @@ export function createScene(canvas: HTMLCanvasElement, { mobile = false }: { mob
     return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
   }
 
-  const ANCHOR_IDS: SensorId[] = ['camera', 'probe', 'dht', 'rain', 'pi', 'radio', 'solar', 'drive'];
+  const ANCHOR_IDS: SensorId[] = ['camera', 'probe', 'dht', 'rain', 'pi', 'radio', 'power', 'drive'];
   const anchorWorld = new THREE.Vector3();
   function anchors(width: number, height: number) {
     bot.rover.updateMatrixWorld();
